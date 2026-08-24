@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// Firestore-Sicherheitsregeln für den Linienspiel-Tracker (TuS Haren).
+//
+// Es gibt bewusst kein Login: Jeder mit dem Link kann lesen und schreiben.
+// Das ist für ein kleines Team-Tool ok, aber jeder, der die Web-Adresse
+// kennt, könnte theoretisch auch Daten ändern. Für mehr Sicherheit später
+// könnte man Firebase Authentication ergänzen und die Regeln verschärfen.
+//
+// Diese Regeln öffnen NUR den Pfad /linienspiel/state, der Rest der
+// Datenbank bleibt komplett gesperrt.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /linienspiel/state {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
