@@ -225,6 +225,29 @@
   .checkbox-row .cb-label { font-weight: 700; font-size: 0.9rem; }
   .checkbox-row .cb-amounts { margin-left: auto; font-size: 0.78rem; color: var(--text-muted); }
 
+  .payer-override-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .payer-override-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+  }
+  .payer-override-row .por-label { color: var(--text-muted); }
+  .payer-override-row .por-name { font-weight: 700; }
+  .payer-override-row select {
+    margin-left: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 5px 8px;
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+
   .chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip {
     border: 1px solid var(--border);
@@ -239,6 +262,7 @@
   }
   .chip:hover { border-color: var(--accent); }
   .chip.sel-fine { background: var(--negative-soft); border-color: var(--negative); color: var(--negative); }
+  .chip.sel-short { background: var(--surface-2); border-color: var(--text-muted); color: var(--text); }
   .chip.sel-credit { background: var(--positive-soft); border-color: var(--positive); color: var(--positive); }
   .chip.disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -301,6 +325,7 @@
     border-radius: 999px;
   }
   .tag.fine { background: var(--negative-soft); color: var(--negative); }
+  .tag.short { background: var(--surface-2); color: var(--text-muted); }
   .tag.credit { background: var(--positive-soft); color: var(--positive); }
   .history-empty { text-align: center; color: var(--text-muted); padding: 30px 0; }
 
@@ -433,8 +458,14 @@
         </div>
 
         <div class="field">
-          <label id="fineLabel">Drüber geschossen (zahlt)</label>
+          <label id="fineLabel">Zu weit geschossen (zahlt)</label>
           <div class="chip-wrap" id="fineChips"></div>
+          <div id="finePayerOverrides"></div>
+        </div>
+
+        <div class="field">
+          <label>Zu kurz geschossen (nur Statistik)</label>
+          <div class="chip-wrap" id="shortChips"></div>
         </div>
 
         <div class="field">
@@ -457,9 +488,9 @@
     <section class="panel" id="tab-statistik">
       <div class="card">
         <h2>Statistik</h2>
-        <p class="hint">Gespielt, drüber geschossen &amp; gewonnen (Top 3) pro Spieler.</p>
+        <p class="hint">Gespielt, zu weit, zu kurz &amp; gewonnen (Top 3) pro Spieler.</p>
         <table id="statsTable">
-          <thead><tr><th>Spieler</th><th style="text-align:right">Gespielt</th><th style="text-align:right">Drüber</th><th style="text-align:right">Gewonnen</th><th style="text-align:right">Quote</th></tr></thead>
+          <thead><tr><th>Spieler</th><th style="text-align:right">Gespielt</th><th style="text-align:right">Zu weit</th><th style="text-align:right">Zu kurz</th><th style="text-align:right">Gewonnen</th><th style="text-align:right">Quote</th></tr></thead>
           <tbody></tbody>
         </table>
         <div class="empty" id="statsEmpty" style="display:none">Noch keine Spieler im Kader.</div>
@@ -533,7 +564,9 @@
   // ---- selection state for "new training" form ----
   var selParticipant = {};
   var selFine = {};
+  var selShort = {};
   var selCredit = {};
+  var finePayerOverride = {}; // { shooterId: payerId } – wer übernimmt die Strafe von wem
 
   function uid() {
     return "id_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
@@ -559,8 +592,9 @@
       var fine = s.isMega ? FINE_MEGA : FINE_NORMAL;
       var credit = s.isMega ? CREDIT_MEGA : CREDIT_NORMAL;
       (s.penalized || []).forEach(function (id) {
-        if (map[id] === undefined) map[id] = 0;
-        map[id] -= fine;
+        var payerId = (s.finePayerOverrides && s.finePayerOverrides[id]) || id;
+        if (map[payerId] === undefined) map[payerId] = 0;
+        map[payerId] -= fine;
       });
       (s.rewarded || []).forEach(function (id) {
         if (map[id] === undefined) map[id] = 0;
@@ -722,19 +756,24 @@
     var fine = mega ? FINE_MEGA : FINE_NORMAL;
     var credit = mega ? CREDIT_MEGA : CREDIT_NORMAL;
     document.getElementById("megaAmountsHint").textContent = "Strafe " + formatEuro(-fine).replace("-", "") + " / Gutschrift " + formatEuro(credit);
-    document.getElementById("fineLabel").textContent = "Drüber geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ")";
+    document.getElementById("fineLabel").textContent = "Zu weit geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ")";
     document.getElementById("creditLabel").textContent = "Top 3 am nächsten (Gutschrift " + formatEuro(credit) + ", max. 3)";
   }
 
   function renderChips() {
     var participantWrap = document.getElementById("participantChips");
     var fineWrap = document.getElementById("fineChips");
+    var shortWrap = document.getElementById("shortChips");
     var creditWrap = document.getElementById("creditChips");
+
+    var payerWrap = document.getElementById("finePayerOverrides");
 
     if (state.players.length === 0) {
       participantWrap.innerHTML = '<span class="empty">Noch keine Spieler im Kader.</span>';
       fineWrap.innerHTML = "";
+      shortWrap.innerHTML = "";
       creditWrap.innerHTML = "";
+      payerWrap.innerHTML = "";
       return;
     }
 
@@ -746,14 +785,40 @@
     var participants = state.players.filter(function (p) { return selParticipant[p.id]; });
 
     if (participants.length === 0) {
-      fineWrap.innerHTML = '<span class="empty">Bitte zuerst Teilnehmer oben auswählen.</span>';
-      creditWrap.innerHTML = '<span class="empty">Bitte zuerst Teilnehmer oben auswählen.</span>';
+      var hint = '<span class="empty">Bitte zuerst Teilnehmer oben auswählen.</span>';
+      fineWrap.innerHTML = hint;
+      shortWrap.innerHTML = hint;
+      creditWrap.innerHTML = hint;
+      payerWrap.innerHTML = "";
       return;
     }
 
     fineWrap.innerHTML = participants.map(function (p) {
       var sel = selFine[p.id] ? " sel-fine" : "";
       return '<button type="button" class="chip' + sel + '" data-fine-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
+    }).join("");
+
+    var fineSelectedPlayers = state.players.filter(function (p) { return selFine[p.id]; });
+    if (fineSelectedPlayers.length === 0) {
+      payerWrap.innerHTML = "";
+    } else {
+      payerWrap.innerHTML = '<div class="payer-override-list">' + fineSelectedPlayers.map(function (shooter) {
+        var currentPayer = finePayerOverride[shooter.id] || shooter.id;
+        var options = state.players.map(function (p) {
+          var label = p.id === shooter.id ? (p.name + " (selbst)") : p.name;
+          var selected = p.id === currentPayer ? " selected" : "";
+          return '<option value="' + p.id + '"' + selected + '>' + escapeHtml(label) + '</option>';
+        }).join("");
+        return '<div class="payer-override-row">' +
+          '<span class="por-label">Strafe von</span> <span class="por-name">' + escapeHtml(shooter.name) + '</span>' +
+          '<select data-payer-for="' + shooter.id + '">' + options + '</select>' +
+          '</div>';
+      }).join("") + '</div>';
+    }
+
+    shortWrap.innerHTML = participants.map(function (p) {
+      var sel = selShort[p.id] ? " sel-short" : "";
+      return '<button type="button" class="chip' + sel + '" data-short-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
     }).join("");
 
     var creditCount = Object.keys(selCredit).filter(function (k) { return selCredit[k]; }).length;
@@ -775,11 +840,16 @@
     list.innerHTML = sorted.map(function (s) {
       var d = new Date(s.date + "T00:00:00");
       var dateLabel = d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
-      var fineNames = (s.penalized || []).map(playerName);
+      var fineNames = (s.penalized || []).map(function (id) {
+        var overridePayer = s.finePayerOverrides && s.finePayerOverrides[id];
+        return overridePayer ? (playerName(id) + " (zahlt: " + playerName(overridePayer) + ")") : playerName(id);
+      });
+      var shortNames = (s.short || []).map(playerName);
       var creditNames = (s.rewarded || []).map(playerName);
       var tags = "";
-      if (fineNames.length) tags += '<span class="tag fine">💸 ' + fineNames.map(escapeHtml).join(", ") + '</span>';
-      if (creditNames.length) tags += '<span class="tag credit">🎯 ' + creditNames.map(escapeHtml).join(", ") + '</span>';
+      if (fineNames.length) tags += '<span class="tag fine">💸 Zu weit: ' + fineNames.map(escapeHtml).join(", ") + '</span>';
+      if (shortNames.length) tags += '<span class="tag short">📉 Zu kurz: ' + shortNames.map(escapeHtml).join(", ") + '</span>';
+      if (creditNames.length) tags += '<span class="tag credit">🎯 Am nächsten: ' + creditNames.map(escapeHtml).join(", ") + '</span>';
       return '<div class="history-item">' +
         '<div class="history-head">' +
           '<div class="history-date">' + dateLabel + (s.isMega ? " · 🔥 Mega Mittwoch" : "") + '</div>' +
@@ -808,21 +878,25 @@
 
   function computeStats() {
     var map = {};
-    state.players.forEach(function (p) { map[p.id] = { played: 0, fine: 0, credit: 0 }; });
+    state.players.forEach(function (p) { map[p.id] = { played: 0, fine: 0, short: 0, credit: 0 }; });
     state.sessions.forEach(function (s) {
       var participants = (s.participants && s.participants.length)
         ? s.participants
         : Array.from(new Set((s.penalized || []).concat(s.rewarded || [])));
       participants.forEach(function (id) {
-        if (!map[id]) map[id] = { played: 0, fine: 0, credit: 0 };
+        if (!map[id]) map[id] = { played: 0, fine: 0, short: 0, credit: 0 };
         map[id].played++;
       });
       (s.penalized || []).forEach(function (id) {
-        if (!map[id]) map[id] = { played: 0, fine: 0, credit: 0 };
+        if (!map[id]) map[id] = { played: 0, fine: 0, short: 0, credit: 0 };
         map[id].fine++;
       });
+      (s.short || []).forEach(function (id) {
+        if (!map[id]) map[id] = { played: 0, fine: 0, short: 0, credit: 0 };
+        map[id].short++;
+      });
       (s.rewarded || []).forEach(function (id) {
-        if (!map[id]) map[id] = { played: 0, fine: 0, credit: 0 };
+        if (!map[id]) map[id] = { played: 0, fine: 0, short: 0, credit: 0 };
         map[id].credit++;
       });
     });
@@ -840,15 +914,16 @@
     }
     emptyEl.style.display = "none";
     var rows = state.players.map(function (p) {
-      var st = stats[p.id] || { played: 0, fine: 0, credit: 0 };
+      var st = stats[p.id] || { played: 0, fine: 0, short: 0, credit: 0 };
       var quote = st.played > 0 ? Math.round((st.credit / st.played) * 100) : 0;
-      return { name: p.name, played: st.played, fine: st.fine, credit: st.credit, quote: quote };
+      return { name: p.name, played: st.played, fine: st.fine, short: st.short, credit: st.credit, quote: quote };
     }).sort(function (a, b) { return b.played - a.played || b.credit - a.credit; });
 
     tbody.innerHTML = rows.map(function (r) {
       return '<tr><td class="name">' + escapeHtml(r.name) + '</td>' +
         '<td style="text-align:right">' + r.played + '</td>' +
         '<td style="text-align:right">' + r.fine + '</td>' +
+        '<td style="text-align:right">' + r.short + '</td>' +
         '<td style="text-align:right">' + r.credit + '</td>' +
         '<td style="text-align:right">' + r.quote + '%</td></tr>';
     }).join("");
@@ -886,16 +961,42 @@
     selParticipant[id] = !selParticipant[id];
     if (!selParticipant[id]) {
       delete selFine[id];
+      delete selShort[id];
       delete selCredit[id];
+      delete finePayerOverride[id];
     }
     renderChips();
   });
 
+  // Ein Schuss hat genau ein Ergebnis: zu weit ODER zu kurz ODER am nächsten dran.
+  // Auswahl in einer Kategorie entfernt den Spieler automatisch aus den anderen beiden.
   document.getElementById("fineChips").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-fine-id]");
     if (!btn) return;
     var id = btn.dataset.fineId;
     selFine[id] = !selFine[id];
+    if (selFine[id]) { delete selShort[id]; delete selCredit[id]; }
+    else { delete finePayerOverride[id]; }
+    renderChips();
+  });
+
+  document.getElementById("finePayerOverrides").addEventListener("change", function (e) {
+    var select = e.target.closest("[data-payer-for]");
+    if (!select) return;
+    var shooterId = select.dataset.payerFor;
+    if (select.value === shooterId) {
+      delete finePayerOverride[shooterId];
+    } else {
+      finePayerOverride[shooterId] = select.value;
+    }
+  });
+
+  document.getElementById("shortChips").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-short-id]");
+    if (!btn) return;
+    var id = btn.dataset.shortId;
+    selShort[id] = !selShort[id];
+    if (selShort[id]) { delete selFine[id]; delete selCredit[id]; delete finePayerOverride[id]; }
     renderChips();
   });
 
@@ -905,6 +1006,7 @@
     if (btn.classList.contains("disabled")) return;
     var id = btn.dataset.creditId;
     selCredit[id] = !selCredit[id];
+    if (selCredit[id]) { delete selFine[id]; delete selShort[id]; delete finePayerOverride[id]; }
     renderChips();
   });
 
@@ -914,24 +1016,34 @@
     var isMega = document.getElementById("inputMega").checked;
     var participants = Object.keys(selParticipant).filter(function (k) { return selParticipant[k]; });
     var penalized = Object.keys(selFine).filter(function (k) { return selFine[k]; });
+    var short = Object.keys(selShort).filter(function (k) { return selShort[k]; });
     var rewarded = Object.keys(selCredit).filter(function (k) { return selCredit[k]; });
     if (participants.length === 0) {
       showToast("Bitte mindestens einen Teilnehmer auswählen");
       return;
     }
+    var finePayerOverrides = {};
+    penalized.forEach(function (shooterId) {
+      var payerId = finePayerOverride[shooterId];
+      if (payerId && payerId !== shooterId) finePayerOverrides[shooterId] = payerId;
+    });
     state.sessions.push({
       id: uid(),
       date: date,
       isMega: isMega,
       participants: participants,
       penalized: penalized,
+      finePayerOverrides: finePayerOverrides,
+      short: short,
       rewarded: rewarded,
       createdAt: Date.now()
     });
     saveState();
     selParticipant = {};
     selFine = {};
+    selShort = {};
     selCredit = {};
+    finePayerOverride = {};
     renderAll();
     showToast("Training gespeichert");
   });
@@ -1005,7 +1117,9 @@
     state.players = state.players.filter(function (p) { return p.id !== id; });
     delete selParticipant[id];
     delete selFine[id];
+    delete selShort[id];
     delete selCredit[id];
+    delete finePayerOverride[id];
     saveState();
     renderAll();
     showToast("Spieler entfernt");
