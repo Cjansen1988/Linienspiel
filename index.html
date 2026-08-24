@@ -200,7 +200,7 @@
 
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
-  input[type="date"], input[type="text"] {
+  input[type="date"], input[type="text"], textarea {
     width: 100%;
     background: var(--bg);
     border: 1px solid var(--border);
@@ -208,8 +208,10 @@
     padding: 10px 12px;
     color: var(--text);
     font-size: 0.95rem;
+    font-family: inherit;
   }
-  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  textarea { resize: vertical; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   .checkbox-row {
     display: flex;
@@ -313,6 +315,9 @@
     border-radius: 10px;
   }
   .kader-row .kname { flex: 1; font-weight: 600; font-size: 0.92rem; }
+  .kader-row .kactions { display: flex; gap: 6px; }
+  .btn.icon { background: transparent; color: var(--text-muted); border: 1px solid var(--border); width: auto; padding: 6px 10px; font-size: 0.9rem; }
+  .btn.icon:hover { border-color: var(--accent); color: var(--accent); }
 
   .rules p { font-size: 0.92rem; line-height: 1.55; margin: 0 0 10px; }
   .rules strong { color: var(--accent); }
@@ -464,12 +469,21 @@
     <section class="panel" id="tab-kader">
       <div class="card">
         <h2>Kader verwalten</h2>
-        <p class="hint">Spieler einmalig anlegen, danach nur noch Trainings eintragen.</p>
+        <p class="hint">Spieler anlegen, umbenennen oder entfernen. Namen lassen sich über den Stift-Button bearbeiten.</p>
         <div class="kader-list" id="kaderList"></div>
         <div class="row-flex">
           <input type="text" id="newPlayerInput" placeholder="Name eingeben...">
           <button class="btn small" id="addPlayerBtn" style="width:auto">Hinzufügen</button>
         </div>
+      </div>
+
+      <div class="card">
+        <h2>Mehrere Spieler auf einmal hinzufügen</h2>
+        <p class="hint">Einen Namen pro Zeile einfügen (z. B. aus einer Liste kopiert).</p>
+        <div class="field">
+          <textarea id="bulkPlayerInput" rows="6" placeholder="Max Mustermann&#10;Erika Musterfrau&#10;..."></textarea>
+        </div>
+        <button class="btn secondary" id="bulkAddBtn" style="width:auto">Alle hinzufügen</button>
       </div>
     </section>
 
@@ -784,7 +798,11 @@
       return;
     }
     list.innerHTML = state.players.map(function (p) {
-      return '<div class="kader-row"><span class="kname">' + escapeHtml(p.name) + '</span><button class="btn ghost" data-remove-player="' + p.id + '">Entfernen</button></div>';
+      return '<div class="kader-row"><span class="kname">' + escapeHtml(p.name) + '</span>' +
+        '<div class="kactions">' +
+        '<button class="btn icon" data-edit-player="' + p.id + '" title="Umbenennen">✏️</button>' +
+        '<button class="btn ghost" data-remove-player="' + p.id + '">Entfernen</button>' +
+        '</div></div>';
     }).join("");
   }
 
@@ -945,7 +963,40 @@
     showToast("Spieler hinzugefügt");
   }
 
+  document.getElementById("bulkAddBtn").addEventListener("click", function () {
+    var textarea = document.getElementById("bulkPlayerInput");
+    var lines = textarea.value.split("\n").map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 0; });
+    if (lines.length === 0) { showToast("Bitte mindestens einen Namen eingeben"); return; }
+    var existingLower = state.players.map(function (p) { return p.name.toLowerCase(); });
+    var added = 0;
+    lines.forEach(function (name) {
+      if (existingLower.indexOf(name.toLowerCase()) !== -1) return; // Duplikat überspringen
+      state.players.push({ id: uid(), name: name });
+      existingLower.push(name.toLowerCase());
+      added++;
+    });
+    textarea.value = "";
+    saveState();
+    renderAll();
+    showToast(added + " Spieler hinzugefügt" + (lines.length - added > 0 ? " (" + (lines.length - added) + " Duplikate übersprungen)" : ""));
+  });
+
   document.getElementById("kaderList").addEventListener("click", function (e) {
+    var editBtn = e.target.closest("[data-edit-player]");
+    if (editBtn) {
+      var editId = editBtn.dataset.editPlayer;
+      var current = playerName(editId);
+      var next = prompt("Neuer Name für \"" + current + "\":", current);
+      if (next === null) return;
+      next = next.trim();
+      if (!next) { showToast("Name darf nicht leer sein"); return; }
+      var player = state.players.filter(function (p) { return p.id === editId; })[0];
+      if (player) player.name = next;
+      saveState();
+      renderAll();
+      showToast("Name geändert");
+      return;
+    }
     var btn = e.target.closest("[data-remove-player]");
     if (!btn) return;
     var id = btn.dataset.removePlayer;
