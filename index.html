@@ -1,3 +1,12 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c8102e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Linienspiel Tracker</title>
 <style>
   :root {
@@ -57,16 +66,23 @@
 
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
   }
   .app {
     max-width: 760px;
     margin: 0 auto;
-    padding: 20px 16px 64px;
+    padding: 20px 16px calc(48px + env(safe-area-inset-bottom, 0px));
+    padding-top: max(20px, env(safe-area-inset-top, 0px));
   }
 
   .topbar {
@@ -120,10 +136,19 @@
     display: flex;
     gap: 6px;
     overflow-x: auto;
-    padding-bottom: 4px;
-    margin-bottom: 18px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 8px 0 4px;
+    margin: 0 -16px 18px;
+    padding-left: 16px;
+    padding-right: 16px;
     border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    background: var(--bg);
+    z-index: 20;
   }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab {
     flex: 0 0 auto;
     background: transparent;
@@ -131,6 +156,8 @@
     color: var(--text-muted);
     font-size: 0.88rem;
     font-weight: 600;
+    min-height: 40px;
+    -webkit-tap-highlight-color: transparent;
     padding: 10px 14px;
     border-radius: 10px 10px 0 0;
     cursor: pointer;
@@ -186,8 +213,17 @@
   .stat .value.pos { color: var(--positive); }
   .stat .value.neg { color: var(--negative); }
 
-  table { width: 100%; border-collapse: collapse; }
+  @media (max-width: 380px) {
+    .stat-row { gap: 6px; }
+    .stat { padding: 10px 6px; }
+    .stat .label { font-size: 0.64rem; }
+    .stat .value { font-size: 1.05rem; }
+  }
+
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; }
+  table { width: 100%; min-width: 420px; border-collapse: collapse; }
   th, td { text-align: left; padding: 10px 8px; font-size: 0.9rem; }
+  thead th { white-space: nowrap; }
   thead th { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; border-bottom: 1px solid var(--border); }
   tbody tr { border-bottom: 1px solid var(--border); }
   tbody tr:last-child { border-bottom: none; }
@@ -205,12 +241,13 @@
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 10px 12px;
+    padding: 12px;
     color: var(--text);
-    font-size: 0.95rem;
+    font-size: 16px; /* verhindert Auto-Zoom beim Fokus auf iOS */
     font-family: inherit;
+    min-height: 44px;
   }
-  textarea { resize: vertical; }
+  textarea { resize: vertical; min-height: 100px; }
   input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
   .checkbox-row {
@@ -243,22 +280,28 @@
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 5px 8px;
+    padding: 8px;
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: 16px; /* verhindert Auto-Zoom beim Fokus auf iOS */
+    min-height: 40px;
+    max-width: 100%;
   }
 
-  .chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip-wrap { display: flex; flex-wrap: wrap; gap: 10px; }
   .chip {
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--text);
-    padding: 8px 14px;
+    padding: 10px 16px;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
     border-radius: 999px;
-    font-size: 0.86rem;
+    font-size: 0.9rem;
     font-weight: 600;
     cursor: pointer;
     transition: all .12s ease;
+    -webkit-tap-highlight-color: transparent;
   }
   .chip:hover { border-color: var(--accent); }
   .chip.sel-fine { background: var(--negative-soft); border-color: var(--negative); color: var(--negative); }
@@ -289,19 +332,20 @@
     border: 1px solid var(--border);
   }
   .btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
-  .btn.small { width: auto; padding: 7px 12px; font-size: 0.8rem; }
+  .btn.small { width: auto; padding: 9px 14px; font-size: 0.82rem; min-height: 40px; }
   .btn.ghost {
     background: transparent;
     color: var(--negative);
     border: 1px solid var(--negative-soft);
     width: auto;
-    padding: 6px 10px;
-    font-size: 0.76rem;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    min-height: 36px;
   }
   .btn.ghost:hover { background: var(--negative-soft); }
 
-  .row-flex { display: flex; gap: 10px; }
-  .row-flex > * { flex: 1; }
+  .row-flex { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row-flex > * { flex: 1; min-width: 140px; }
 
   .history-item {
     border: 1px solid var(--border);
@@ -333,15 +377,16 @@
   .kader-row {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
-    padding: 9px 12px;
+    padding: 10px 12px;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 10px;
   }
   .kader-row .kname { flex: 1; font-weight: 600; font-size: 0.92rem; }
   .kader-row .kactions { display: flex; gap: 6px; }
-  .btn.icon { background: transparent; color: var(--text-muted); border: 1px solid var(--border); width: auto; padding: 6px 10px; font-size: 0.9rem; }
+  .btn.icon { background: transparent; color: var(--text-muted); border: 1px solid var(--border); width: auto; padding: 8px 12px; font-size: 0.95rem; min-height: 36px; }
   .btn.icon:hover { border-color: var(--accent); color: var(--accent); }
 
   .rules p { font-size: 0.92rem; line-height: 1.55; margin: 0 0 10px; }
@@ -393,6 +438,8 @@
 
   ::selection { background: var(--accent-soft); }
 </style>
+</head>
+<body>
 
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-box">
@@ -426,10 +473,10 @@
       <div class="card">
         <h2>Kontostand pro Spieler</h2>
         <p class="hint">Rot = offene Schulden &middot; Grün = Guthaben</p>
-        <table id="balanceTable">
+        <div class="table-scroll"><table id="balanceTable">
           <thead><tr><th class="rank">#</th><th>Spieler</th><th style="text-align:right">Saldo</th></tr></thead>
           <tbody></tbody>
-        </table>
+        </table></div>
         <div class="empty" id="balanceEmpty" style="display:none">Noch keine Spieler im Kader. Leg sie unter „Kader" an.</div>
       </div>
     </section>
@@ -464,8 +511,9 @@
         </div>
 
         <div class="field">
-          <label>Zu kurz geschossen (nur Statistik)</label>
+          <label id="shortLabel">Zu kurz geschossen (zahlt)</label>
           <div class="chip-wrap" id="shortChips"></div>
+          <div id="shortPayerOverrides"></div>
         </div>
 
         <div class="field">
@@ -489,10 +537,10 @@
       <div class="card">
         <h2>Statistik</h2>
         <p class="hint">Gespielt, zu weit, zu kurz &amp; gewonnen (Top 3) pro Spieler.</p>
-        <table id="statsTable">
+        <div class="table-scroll"><table id="statsTable">
           <thead><tr><th>Spieler</th><th style="text-align:right">Gespielt</th><th style="text-align:right">Zu weit</th><th style="text-align:right">Zu kurz</th><th style="text-align:right">Gewonnen</th><th style="text-align:right">Quote</th></tr></thead>
           <tbody></tbody>
-        </table>
+        </table></div>
         <div class="empty" id="statsEmpty" style="display:none">Noch keine Spieler im Kader.</div>
       </div>
     </section>
@@ -522,9 +570,10 @@
       <div class="card rules">
         <h2>Regeln – Linienspiel</h2>
         <p>Ziel: den Ball von der <strong>16er-Linie</strong> auf die <strong>5-Meter-Linie</strong> passen.</p>
-        <p>Wer <strong>drüber schießt</strong>, zahlt <strong>50 Cent</strong>.</p>
+        <p>Wer <strong>drüber schießt (zu weit)</strong> oder den Ball <strong>nicht bis zur Linie bringt (zu kurz)</strong>, zahlt <strong>50 Cent</strong>.</p>
         <p>Die <strong>3 Spieler, die am nächsten</strong> dran waren, bekommen eine Gutschrift von <strong>1 Euro</strong>.</p>
         <p>Ausnahme: <strong>Mittwoch = Mega Mittwoch</strong> 🔥 — da kostet alles das Doppelte (1 €), aber die Gutschrift ist auch doppelt so hoch (2 €).</p>
+        <p>Eine Strafe kann auch von einem anderen Spieler übernommen werden — die Statistik zählt trotzdem beim eigentlichen Schützen.</p>
       </div>
     </section>
   </main>
@@ -592,6 +641,11 @@
       var fine = s.isMega ? FINE_MEGA : FINE_NORMAL;
       var credit = s.isMega ? CREDIT_MEGA : CREDIT_NORMAL;
       (s.penalized || []).forEach(function (id) {
+        var payerId = (s.finePayerOverrides && s.finePayerOverrides[id]) || id;
+        if (map[payerId] === undefined) map[payerId] = 0;
+        map[payerId] -= fine;
+      });
+      (s.short || []).forEach(function (id) {
         var payerId = (s.finePayerOverrides && s.finePayerOverrides[id]) || id;
         if (map[payerId] === undefined) map[payerId] = 0;
         map[payerId] -= fine;
@@ -703,7 +757,7 @@
     state.sessions.forEach(function (s) {
       var fine = s.isMega ? FINE_MEGA : FINE_NORMAL;
       var credit = s.isMega ? CREDIT_MEGA : CREDIT_NORMAL;
-      totalFine += (s.penalized || []).length * fine;
+      totalFine += ((s.penalized || []).length + (s.short || []).length) * fine;
       totalCredit += (s.rewarded || []).length * credit;
     });
     var net = totalFine - totalCredit;
@@ -757,6 +811,7 @@
     var credit = mega ? CREDIT_MEGA : CREDIT_NORMAL;
     document.getElementById("megaAmountsHint").textContent = "Strafe " + formatEuro(-fine).replace("-", "") + " / Gutschrift " + formatEuro(credit);
     document.getElementById("fineLabel").textContent = "Zu weit geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ")";
+    document.getElementById("shortLabel").textContent = "Zu kurz geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ")";
     document.getElementById("creditLabel").textContent = "Top 3 am nächsten (Gutschrift " + formatEuro(credit) + ", max. 3)";
   }
 
@@ -767,6 +822,7 @@
     var creditWrap = document.getElementById("creditChips");
 
     var payerWrap = document.getElementById("finePayerOverrides");
+    var shortPayerWrapEarly = document.getElementById("shortPayerOverrides");
 
     if (state.players.length === 0) {
       participantWrap.innerHTML = '<span class="empty">Noch keine Spieler im Kader.</span>';
@@ -774,6 +830,7 @@
       shortWrap.innerHTML = "";
       creditWrap.innerHTML = "";
       payerWrap.innerHTML = "";
+      shortPayerWrapEarly.innerHTML = "";
       return;
     }
 
@@ -790,6 +847,7 @@
       shortWrap.innerHTML = hint;
       creditWrap.innerHTML = hint;
       payerWrap.innerHTML = "";
+      shortPayerWrapEarly.innerHTML = "";
       return;
     }
 
@@ -798,11 +856,9 @@
       return '<button type="button" class="chip' + sel + '" data-fine-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
     }).join("");
 
-    var fineSelectedPlayers = state.players.filter(function (p) { return selFine[p.id]; });
-    if (fineSelectedPlayers.length === 0) {
-      payerWrap.innerHTML = "";
-    } else {
-      payerWrap.innerHTML = '<div class="payer-override-list">' + fineSelectedPlayers.map(function (shooter) {
+    function renderPayerOverrideRows(shooters) {
+      if (shooters.length === 0) return "";
+      return '<div class="payer-override-list">' + shooters.map(function (shooter) {
         var currentPayer = finePayerOverride[shooter.id] || shooter.id;
         var options = state.players.map(function (p) {
           var label = p.id === shooter.id ? (p.name + " (selbst)") : p.name;
@@ -816,10 +872,17 @@
       }).join("") + '</div>';
     }
 
+    var fineSelectedPlayers = state.players.filter(function (p) { return selFine[p.id]; });
+    payerWrap.innerHTML = renderPayerOverrideRows(fineSelectedPlayers);
+
     shortWrap.innerHTML = participants.map(function (p) {
       var sel = selShort[p.id] ? " sel-short" : "";
       return '<button type="button" class="chip' + sel + '" data-short-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
     }).join("");
+
+    var shortPayerWrap = document.getElementById("shortPayerOverrides");
+    var shortSelectedPlayers = state.players.filter(function (p) { return selShort[p.id]; });
+    shortPayerWrap.innerHTML = renderPayerOverrideRows(shortSelectedPlayers);
 
     var creditCount = Object.keys(selCredit).filter(function (k) { return selCredit[k]; }).length;
     creditWrap.innerHTML = participants.map(function (p) {
@@ -844,7 +907,10 @@
         var overridePayer = s.finePayerOverrides && s.finePayerOverrides[id];
         return overridePayer ? (playerName(id) + " (zahlt: " + playerName(overridePayer) + ")") : playerName(id);
       });
-      var shortNames = (s.short || []).map(playerName);
+      var shortNames = (s.short || []).map(function (id) {
+        var overridePayer = s.finePayerOverrides && s.finePayerOverrides[id];
+        return overridePayer ? (playerName(id) + " (zahlt: " + playerName(overridePayer) + ")") : playerName(id);
+      });
       var creditNames = (s.rewarded || []).map(playerName);
       var tags = "";
       if (fineNames.length) tags += '<span class="tag fine">💸 Zu weit: ' + fineNames.map(escapeHtml).join(", ") + '</span>';
@@ -970,6 +1036,8 @@
 
   // Ein Schuss hat genau ein Ergebnis: zu weit ODER zu kurz ODER am nächsten dran.
   // Auswahl in einer Kategorie entfernt den Spieler automatisch aus den anderen beiden.
+  // "Zu weit" und "zu kurz" kosten beide eine Strafe, daher bleibt eine bereits
+  // gewählte Übernahme (wer zahlt) beim Wechsel zwischen diesen beiden erhalten.
   document.getElementById("fineChips").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-fine-id]");
     if (!btn) return;
@@ -980,7 +1048,7 @@
     renderChips();
   });
 
-  document.getElementById("finePayerOverrides").addEventListener("change", function (e) {
+  function handlePayerOverrideChange(e) {
     var select = e.target.closest("[data-payer-for]");
     if (!select) return;
     var shooterId = select.dataset.payerFor;
@@ -989,14 +1057,17 @@
     } else {
       finePayerOverride[shooterId] = select.value;
     }
-  });
+  }
+  document.getElementById("finePayerOverrides").addEventListener("change", handlePayerOverrideChange);
+  document.getElementById("shortPayerOverrides").addEventListener("change", handlePayerOverrideChange);
 
   document.getElementById("shortChips").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-short-id]");
     if (!btn) return;
     var id = btn.dataset.shortId;
     selShort[id] = !selShort[id];
-    if (selShort[id]) { delete selFine[id]; delete selCredit[id]; delete finePayerOverride[id]; }
+    if (selShort[id]) { delete selFine[id]; delete selCredit[id]; }
+    else { delete finePayerOverride[id]; }
     renderChips();
   });
 
@@ -1023,7 +1094,7 @@
       return;
     }
     var finePayerOverrides = {};
-    penalized.forEach(function (shooterId) {
+    penalized.concat(short).forEach(function (shooterId) {
       var payerId = finePayerOverride[shooterId];
       if (payerId && payerId !== shooterId) finePayerOverrides[shooterId] = payerId;
     });
@@ -1127,3 +1198,5 @@
 
   startSync();
 </script>
+</body>
+</html>
