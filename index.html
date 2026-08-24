@@ -1,0 +1,964 @@
+<title>Linienspiel Tracker</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f6f7;
+    --surface-2: #eeeeef;
+    --border: #e2e2e4;
+    --text: #131314;
+    --text-muted: #6b6b6f;
+    --accent: #c8102e;
+    --accent-hover: #a80d26;
+    --accent-soft: #fbe6e9;
+    --positive: #1a7a3c;
+    --positive-soft: #e6f5ea;
+    --negative: #c8102e;
+    --negative-soft: #fbe6e9;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+    --radius: 14px;
+    font-synthesis: none;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0d0e;
+      --surface: #18181a;
+      --surface-2: #212123;
+      --border: #2c2c2f;
+      --text: #f2f2f3;
+      --text-muted: #9a9a9e;
+      --accent: #ff3b52;
+      --accent-hover: #ff5468;
+      --accent-soft: #341318;
+      --positive: #3ecb72;
+      --positive-soft: #123321;
+      --negative: #ff3b52;
+      --negative-soft: #341318;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.4);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #0d0d0e;
+    --surface: #18181a;
+    --surface-2: #212123;
+    --border: #2c2c2f;
+    --text: #f2f2f3;
+    --text-muted: #9a9a9e;
+    --accent: #ff3b52;
+    --accent-hover: #ff5468;
+    --accent-soft: #341318;
+    --positive: #3ecb72;
+    --positive-soft: #123321;
+    --negative: #ff3b52;
+    --negative-soft: #341318;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 20px 16px 64px;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .brand {
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .brand .club { color: var(--text); }
+  .brand .sub {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .today-line {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+  .conn-status {
+    font-size: 0.76rem;
+    font-weight: 700;
+    margin-top: 2px;
+    display: block;
+  }
+  .conn-status.conn-ok { color: var(--positive); }
+  .conn-status.conn-bad { color: var(--negative); }
+  .mega-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    box-shadow: var(--shadow);
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 0 0 auto;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 10px 14px;
+    border-radius: 10px 10px 0 0;
+    cursor: pointer;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    transition: color .15s ease;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--text);
+    border-bottom: 2px solid var(--accent);
+  }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fade .15s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(2px);} to { opacity: 1; transform: translateY(0);} }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card h2 {
+    margin: 0 0 4px;
+    font-size: 1.02rem;
+    font-weight: 700;
+  }
+  .card .hint {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    margin: 0 0 14px;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 12px;
+    text-align: center;
+    box-shadow: var(--shadow);
+  }
+  .stat .label { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat .value { font-size: 1.3rem; font-weight: 800; margin-top: 4px; }
+  .stat .value.pos { color: var(--positive); }
+  .stat .value.neg { color: var(--negative); }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; font-size: 0.9rem; }
+  thead th { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; border-bottom: 1px solid var(--border); }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  td.rank { color: var(--text-muted); font-weight: 700; width: 28px; }
+  td.name { font-weight: 600; }
+  td.balance { text-align: right; font-weight: 800; }
+  td.balance.pos { color: var(--positive); }
+  td.balance.neg { color: var(--negative); }
+  .empty { color: var(--text-muted); font-size: 0.88rem; padding: 8px 0; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
+  input[type="date"], input[type="text"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .checkbox-row input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .checkbox-row .cb-label { font-weight: 700; font-size: 0.9rem; }
+  .checkbox-row .cb-amounts { margin-left: auto; font-size: 0.78rem; color: var(--text-muted); }
+
+  .chip-wrap { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .12s ease;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.sel-fine { background: var(--negative-soft); border-color: var(--negative); color: var(--negative); }
+  .chip.sel-credit { background: var(--positive-soft); border-color: var(--positive); color: var(--positive); }
+  .chip.disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.92rem;
+    cursor: pointer;
+    width: 100%;
+    transition: background .12s ease;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.small { width: auto; padding: 7px 12px; font-size: 0.8rem; }
+  .btn.ghost {
+    background: transparent;
+    color: var(--negative);
+    border: 1px solid var(--negative-soft);
+    width: auto;
+    padding: 6px 10px;
+    font-size: 0.76rem;
+  }
+  .btn.ghost:hover { background: var(--negative-soft); }
+
+  .row-flex { display: flex; gap: 10px; }
+  .row-flex > * { flex: 1; }
+
+  .history-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--bg);
+  }
+  .history-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .history-date { font-weight: 700; font-size: 0.9rem; }
+  .history-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .tag {
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+  .tag.fine { background: var(--negative-soft); color: var(--negative); }
+  .tag.credit { background: var(--positive-soft); color: var(--positive); }
+  .history-empty { text-align: center; color: var(--text-muted); padding: 30px 0; }
+
+  .kader-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+  .kader-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .kader-row .kname { flex: 1; font-weight: 600; font-size: 0.92rem; }
+
+  .rules p { font-size: 0.92rem; line-height: 1.55; margin: 0 0 10px; }
+  .rules strong { color: var(--accent); }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    transition: opacity .2s ease;
+    text-align: center;
+    padding: 24px;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-box { font-weight: 700; color: var(--text-muted); font-size: 0.95rem; max-width: 320px; }
+  .loading-box .big { font-size: 2rem; display: block; margin-bottom: 10px; }
+  .loading-box code {
+    display: block;
+    margin-top: 10px;
+    font-size: 0.76rem;
+    background: var(--surface-2);
+    padding: 6px 8px;
+    border-radius: 8px;
+    color: var(--text);
+  }
+
+  ::selection { background: var(--accent-soft); }
+</style>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <span class="big">⚽</span>
+    <span id="loadingText">Verbinde mit der Datenbank…</span>
+  </div>
+</div>
+
+<div class="app">
+  <div class="topbar">
+    <div>
+      <div class="brand"><span>⚽</span><span class="club">TuS Haren</span><span class="sub">Linienspiel</span></div>
+      <div class="today-line" id="todayLine"></div>
+      <span class="conn-status" id="connStatus"></span>
+    </div>
+    <div id="megaBadgeSlot"></div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="kontostand">Kontostand</button>
+    <button class="tab" data-tab="neu">Neues Training</button>
+    <button class="tab" data-tab="verlauf">Verlauf</button>
+    <button class="tab" data-tab="statistik">Statistik</button>
+    <button class="tab" data-tab="kader">Kader</button>
+    <button class="tab" data-tab="regeln">Regeln</button>
+  </nav>
+
+  <main>
+    <section class="panel active" id="tab-kontostand">
+      <div class="stat-row" id="statRow"></div>
+      <div class="card">
+        <h2>Kontostand pro Spieler</h2>
+        <p class="hint">Rot = offene Schulden &middot; Grün = Guthaben</p>
+        <table id="balanceTable">
+          <thead><tr><th class="rank">#</th><th>Spieler</th><th style="text-align:right">Saldo</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" id="balanceEmpty" style="display:none">Noch keine Spieler im Kader. Leg sie unter „Kader" an.</div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-neu">
+      <div class="card">
+        <h2>Neues Training eintragen</h2>
+        <p class="hint">Wer über die 5-Meter-Linie geschossen hat, zahlt. Die 3 Nächsten dran bekommen eine Gutschrift.</p>
+
+        <div class="field">
+          <label>Datum</label>
+          <input type="date" id="inputDate">
+        </div>
+
+        <div class="field">
+          <div class="checkbox-row">
+            <input type="checkbox" id="inputMega">
+            <span class="cb-label">🔥 Mega Mittwoch</span>
+            <span class="cb-amounts" id="megaAmountsHint"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Teilnehmer (wer war beim Linienspiel dabei)</label>
+          <div class="chip-wrap" id="participantChips"></div>
+        </div>
+
+        <div class="field">
+          <label id="fineLabel">Drüber geschossen (zahlt)</label>
+          <div class="chip-wrap" id="fineChips"></div>
+        </div>
+
+        <div class="field">
+          <label id="creditLabel">Top 3 am nächsten (Gutschrift, max. 3)</label>
+          <div class="chip-wrap" id="creditChips"></div>
+        </div>
+
+        <button class="btn" id="saveTrainingBtn">Training speichern</button>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-verlauf">
+      <div class="card">
+        <h2>Verlauf</h2>
+        <p class="hint">Alle gespeicherten Trainings, neueste zuerst.</p>
+        <div id="historyList"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-statistik">
+      <div class="card">
+        <h2>Statistik</h2>
+        <p class="hint">Gespielt, drüber geschossen &amp; gewonnen (Top 3) pro Spieler.</p>
+        <table id="statsTable">
+          <thead><tr><th>Spieler</th><th style="text-align:right">Gespielt</th><th style="text-align:right">Drüber</th><th style="text-align:right">Gewonnen</th><th style="text-align:right">Quote</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty" id="statsEmpty" style="display:none">Noch keine Spieler im Kader.</div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-kader">
+      <div class="card">
+        <h2>Kader verwalten</h2>
+        <p class="hint">Spieler einmalig anlegen, danach nur noch Trainings eintragen.</p>
+        <div class="kader-list" id="kaderList"></div>
+        <div class="row-flex">
+          <input type="text" id="newPlayerInput" placeholder="Name eingeben...">
+          <button class="btn small" id="addPlayerBtn" style="width:auto">Hinzufügen</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-regeln">
+      <div class="card rules">
+        <h2>Regeln – Linienspiel</h2>
+        <p>Ziel: den Ball von der <strong>16er-Linie</strong> auf die <strong>5-Meter-Linie</strong> passen.</p>
+        <p>Wer <strong>drüber schießt</strong>, zahlt <strong>50 Cent</strong>.</p>
+        <p>Die <strong>3 Spieler, die am nächsten</strong> dran waren, bekommen eine Gutschrift von <strong>1 Euro</strong>.</p>
+        <p>Ausnahme: <strong>Mittwoch = Mega Mittwoch</strong> 🔥 — da kostet alles das Doppelte (1 €), aber die Gutschrift ist auch doppelt so hoch (2 €).</p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  // =====================================================================
+  // TODO: Hier deine eigene Firebase-Konfiguration einfügen.
+  // Anleitung: siehe SETUP-ANLEITUNG.md, Schritt 3.
+  // Diese Werte sind KEINE Passwörter (Firebase-Web-Config ist öffentlich
+  // sichtbar), der eigentliche Schutz läuft über die Firestore-Regeln
+  // (siehe firestore.rules).
+  // =====================================================================
+  var firebaseConfig = {
+    apiKey: "AIzaSyDw_BZ6AB6lw5pqQvVYyeb7xFlkD2tWd7I",
+    authDomain: "linienspiel-tusharen.firebaseapp.com",
+    projectId: "linienspiel-tusharen",
+    storageBucket: "linienspiel-tusharen.firebasestorage.app",
+    messagingSenderId: "485803832044",
+    appId: "1:485803832044:web:66f14ecb55801e4c1eabc9"
+  };
+  // =====================================================================
+
+  var FINE_NORMAL = 50, FINE_MEGA = 100;
+  var CREDIT_NORMAL = 100, CREDIT_MEGA = 200;
+
+  var state = { players: [], sessions: [] };
+  var db = null;
+  var stateDocRef = null;
+  var isConfigured = firebaseConfig.apiKey.indexOf("DEIN_") !== 0;
+
+  // ---- selection state for "new training" form ----
+  var selParticipant = {};
+  var selFine = {};
+  var selCredit = {};
+
+  function uid() {
+    return "id_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  }
+
+  function formatEuro(cents) {
+    var sign = cents < 0 ? "-" : "";
+    var abs = Math.abs(cents);
+    var str = (abs / 100).toFixed(2).replace(".", ",");
+    return sign + str + " €";
+  }
+
+  function isWednesday(dateStr) {
+    if (!dateStr) return false;
+    var d = new Date(dateStr + "T00:00:00");
+    return d.getDay() === 3;
+  }
+
+  function computeBalances() {
+    var map = {};
+    state.players.forEach(function (p) { map[p.id] = 0; });
+    state.sessions.forEach(function (s) {
+      var fine = s.isMega ? FINE_MEGA : FINE_NORMAL;
+      var credit = s.isMega ? CREDIT_MEGA : CREDIT_NORMAL;
+      (s.penalized || []).forEach(function (id) {
+        if (map[id] === undefined) map[id] = 0;
+        map[id] -= fine;
+      });
+      (s.rewarded || []).forEach(function (id) {
+        if (map[id] === undefined) map[id] = 0;
+        map[id] += credit;
+      });
+    });
+    return map;
+  }
+
+  function playerName(id) {
+    var p = state.players.filter(function (x) { return x.id === id; })[0];
+    return p ? p.name : "(gelöscht)";
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    setTimeout(function () { t.classList.remove("show"); }, 2200);
+  }
+
+  function setConnStatus(text, cls) {
+    var el = document.getElementById("connStatus");
+    el.textContent = text;
+    el.className = "conn-status " + (cls || "");
+  }
+
+  function hideLoadingOverlay() {
+    document.getElementById("loadingOverlay").classList.add("hidden");
+  }
+
+  function showSetupNeeded() {
+    document.getElementById("loadingText").innerHTML =
+      "Firebase ist noch nicht eingerichtet.<br>Trage deine Konfiguration in <code>index.html</code> ein " +
+      "(siehe SETUP-ANLEITUNG.md).";
+    setConnStatus("⚠️ Nicht konfiguriert", "conn-bad");
+  }
+
+  // ---------- Firestore sync ----------
+  function saveState() {
+    if (!isConfigured || !stateDocRef) {
+      showToast("Keine Datenbankverbindung – Firebase-Konfiguration prüfen");
+      return;
+    }
+    setDoc(stateDocRef, state).catch(function (e) {
+      console.error(e);
+      showToast("Fehler beim Speichern – bitte Internetverbindung / Firestore-Regeln prüfen");
+    });
+  }
+
+  function startSync() {
+    if (!isConfigured) {
+      showSetupNeeded();
+      renderAll();
+      return;
+    }
+    try {
+      var app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+      stateDocRef = doc(db, "linienspiel", "state");
+    } catch (e) {
+      console.error(e);
+      setConnStatus("🔴 Firebase-Init fehlgeschlagen", "conn-bad");
+      hideLoadingOverlay();
+      return;
+    }
+
+    onSnapshot(stateDocRef, function (snap) {
+      if (snap.exists()) {
+        var data = snap.data() || {};
+        state.players = Array.isArray(data.players) ? data.players : [];
+        state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      } else {
+        state.players = [];
+        state.sessions = [];
+        setDoc(stateDocRef, state).catch(function (e) { console.error(e); });
+      }
+      setConnStatus("🟢 Live verbunden", "conn-ok");
+      hideLoadingOverlay();
+      renderAll();
+    }, function (err) {
+      console.error(err);
+      setConnStatus("🔴 Verbindung fehlgeschlagen", "conn-bad");
+      hideLoadingOverlay();
+      showToast("Verbindung zur Datenbank fehlgeschlagen");
+    });
+  }
+
+  // ---------- render: header ----------
+  function renderHeader() {
+    var today = new Date();
+    var todayStr = today.toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" });
+    document.getElementById("todayLine").textContent = "Heute: " + todayStr;
+    var slot = document.getElementById("megaBadgeSlot");
+    if (today.getDay() === 3) {
+      slot.innerHTML = '<span class="mega-badge">🔥 Heute ist Mega Mittwoch</span>';
+    } else {
+      slot.innerHTML = "";
+    }
+  }
+
+  // ---------- render: kontostand ----------
+  function renderKontostand() {
+    var balances = computeBalances();
+    var totalFine = 0, totalCredit = 0;
+    state.sessions.forEach(function (s) {
+      var fine = s.isMega ? FINE_MEGA : FINE_NORMAL;
+      var credit = s.isMega ? CREDIT_MEGA : CREDIT_NORMAL;
+      totalFine += (s.penalized || []).length * fine;
+      totalCredit += (s.rewarded || []).length * credit;
+    });
+    var net = totalFine - totalCredit;
+
+    var statRow = document.getElementById("statRow");
+    statRow.innerHTML =
+      '<div class="stat"><div class="label">Einnahmen (Strafen)</div><div class="value">' + formatEuro(totalFine) + '</div></div>' +
+      '<div class="stat"><div class="label">Gutschriften</div><div class="value">' + formatEuro(totalCredit) + '</div></div>' +
+      '<div class="stat"><div class="label">Kassenstand netto</div><div class="value ' + (net >= 0 ? "pos" : "neg") + '">' + formatEuro(net) + '</div></div>';
+
+    var rows = state.players.map(function (p) {
+      return { id: p.id, name: p.name, balance: balances[p.id] || 0 };
+    }).sort(function (a, b) { return a.balance - b.balance; });
+
+    var tbody = document.querySelector("#balanceTable tbody");
+    var emptyEl = document.getElementById("balanceEmpty");
+    if (rows.length === 0) {
+      tbody.innerHTML = "";
+      emptyEl.style.display = "block";
+    } else {
+      emptyEl.style.display = "none";
+      tbody.innerHTML = rows.map(function (r, i) {
+        var cls = r.balance > 0 ? "pos" : (r.balance < 0 ? "neg" : "");
+        return '<tr><td class="rank">' + (i + 1) + '</td><td class="name">' + escapeHtml(r.name) + '</td><td class="balance ' + cls + '">' + formatEuro(r.balance) + '</td></tr>';
+      }).join("");
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  // ---------- render: neues training ----------
+  function renderNeuForm() {
+    var dateInput = document.getElementById("inputDate");
+    if (!dateInput.value) {
+      var d = new Date();
+      dateInput.value = d.toISOString().slice(0, 10);
+    }
+    var megaCheckbox = document.getElementById("inputMega");
+    megaCheckbox.checked = isWednesday(dateInput.value);
+    updateMegaHint();
+    renderChips();
+  }
+
+  function updateMegaHint() {
+    var mega = document.getElementById("inputMega").checked;
+    var fine = mega ? FINE_MEGA : FINE_NORMAL;
+    var credit = mega ? CREDIT_MEGA : CREDIT_NORMAL;
+    document.getElementById("megaAmountsHint").textContent = "Strafe " + formatEuro(-fine).replace("-", "") + " / Gutschrift " + formatEuro(credit);
+    document.getElementById("fineLabel").textContent = "Drüber geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ")";
+    document.getElementById("creditLabel").textContent = "Top 3 am nächsten (Gutschrift " + formatEuro(credit) + ", max. 3)";
+  }
+
+  function renderChips() {
+    var participantWrap = document.getElementById("participantChips");
+    var fineWrap = document.getElementById("fineChips");
+    var creditWrap = document.getElementById("creditChips");
+
+    if (state.players.length === 0) {
+      participantWrap.innerHTML = '<span class="empty">Noch keine Spieler im Kader.</span>';
+      fineWrap.innerHTML = "";
+      creditWrap.innerHTML = "";
+      return;
+    }
+
+    participantWrap.innerHTML = state.players.map(function (p) {
+      var sel = selParticipant[p.id] ? " sel-credit" : "";
+      return '<button type="button" class="chip' + sel + '" data-participant-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
+    }).join("");
+
+    var participants = state.players.filter(function (p) { return selParticipant[p.id]; });
+
+    if (participants.length === 0) {
+      fineWrap.innerHTML = '<span class="empty">Bitte zuerst Teilnehmer oben auswählen.</span>';
+      creditWrap.innerHTML = '<span class="empty">Bitte zuerst Teilnehmer oben auswählen.</span>';
+      return;
+    }
+
+    fineWrap.innerHTML = participants.map(function (p) {
+      var sel = selFine[p.id] ? " sel-fine" : "";
+      return '<button type="button" class="chip' + sel + '" data-fine-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
+    }).join("");
+
+    var creditCount = Object.keys(selCredit).filter(function (k) { return selCredit[k]; }).length;
+    creditWrap.innerHTML = participants.map(function (p) {
+      var sel = selCredit[p.id] ? " sel-credit" : "";
+      var disabled = (!selCredit[p.id] && creditCount >= 3) ? " disabled" : "";
+      return '<button type="button" class="chip' + sel + disabled + '" data-credit-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
+    }).join("");
+  }
+
+  // ---------- render: verlauf ----------
+  function renderHistory() {
+    var list = document.getElementById("historyList");
+    if (state.sessions.length === 0) {
+      list.innerHTML = '<div class="history-empty">Noch keine Trainings gespeichert.</div>';
+      return;
+    }
+    var sorted = state.sessions.slice().sort(function (a, b) { return b.date.localeCompare(a.date) || b.createdAt - a.createdAt; });
+    list.innerHTML = sorted.map(function (s) {
+      var d = new Date(s.date + "T00:00:00");
+      var dateLabel = d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+      var fineNames = (s.penalized || []).map(playerName);
+      var creditNames = (s.rewarded || []).map(playerName);
+      var tags = "";
+      if (fineNames.length) tags += '<span class="tag fine">💸 ' + fineNames.map(escapeHtml).join(", ") + '</span>';
+      if (creditNames.length) tags += '<span class="tag credit">🎯 ' + creditNames.map(escapeHtml).join(", ") + '</span>';
+      return '<div class="history-item">' +
+        '<div class="history-head">' +
+          '<div class="history-date">' + dateLabel + (s.isMega ? " · 🔥 Mega Mittwoch" : "") + '</div>' +
+          '<button class="btn ghost" data-delete-session="' + s.id + '">Löschen</button>' +
+        '</div>' +
+        '<div class="history-tags">' + (tags || '<span class="empty">Keine Einträge</span>') + '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  // ---------- render: kader ----------
+  function renderKader() {
+    var list = document.getElementById("kaderList");
+    if (state.players.length === 0) {
+      list.innerHTML = '<div class="empty">Noch keine Spieler angelegt.</div>';
+      return;
+    }
+    list.innerHTML = state.players.map(function (p) {
+      return '<div class="kader-row"><span class="kname">' + escapeHtml(p.name) + '</span><button class="btn ghost" data-remove-player="' + p.id + '">Entfernen</button></div>';
+    }).join("");
+  }
+
+  function computeStats() {
+    var map = {};
+    state.players.forEach(function (p) { map[p.id] = { played: 0, fine: 0, credit: 0 }; });
+    state.sessions.forEach(function (s) {
+      var participants = (s.participants && s.participants.length)
+        ? s.participants
+        : Array.from(new Set((s.penalized || []).concat(s.rewarded || [])));
+      participants.forEach(function (id) {
+        if (!map[id]) map[id] = { played: 0, fine: 0, credit: 0 };
+        map[id].played++;
+      });
+      (s.penalized || []).forEach(function (id) {
+        if (!map[id]) map[id] = { played: 0, fine: 0, credit: 0 };
+        map[id].fine++;
+      });
+      (s.rewarded || []).forEach(function (id) {
+        if (!map[id]) map[id] = { played: 0, fine: 0, credit: 0 };
+        map[id].credit++;
+      });
+    });
+    return map;
+  }
+
+  function renderStatistik() {
+    var stats = computeStats();
+    var tbody = document.querySelector("#statsTable tbody");
+    var emptyEl = document.getElementById("statsEmpty");
+    if (state.players.length === 0) {
+      tbody.innerHTML = "";
+      emptyEl.style.display = "block";
+      return;
+    }
+    emptyEl.style.display = "none";
+    var rows = state.players.map(function (p) {
+      var st = stats[p.id] || { played: 0, fine: 0, credit: 0 };
+      var quote = st.played > 0 ? Math.round((st.credit / st.played) * 100) : 0;
+      return { name: p.name, played: st.played, fine: st.fine, credit: st.credit, quote: quote };
+    }).sort(function (a, b) { return b.played - a.played || b.credit - a.credit; });
+
+    tbody.innerHTML = rows.map(function (r) {
+      return '<tr><td class="name">' + escapeHtml(r.name) + '</td>' +
+        '<td style="text-align:right">' + r.played + '</td>' +
+        '<td style="text-align:right">' + r.fine + '</td>' +
+        '<td style="text-align:right">' + r.credit + '</td>' +
+        '<td style="text-align:right">' + r.quote + '%</td></tr>';
+    }).join("");
+  }
+
+  function renderAll() {
+    renderHeader();
+    renderKontostand();
+    renderNeuForm();
+    renderHistory();
+    renderKader();
+    renderStatistik();
+  }
+
+  // ---------- events ----------
+  document.getElementById("tabs").addEventListener("click", function (e) {
+    var btn = e.target.closest(".tab");
+    if (!btn) return;
+    document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
+    document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+
+  document.getElementById("inputDate").addEventListener("change", function () {
+    document.getElementById("inputMega").checked = isWednesday(this.value);
+    updateMegaHint();
+  });
+  document.getElementById("inputMega").addEventListener("change", updateMegaHint);
+
+  document.getElementById("participantChips").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-participant-id]");
+    if (!btn) return;
+    var id = btn.dataset.participantId;
+    selParticipant[id] = !selParticipant[id];
+    if (!selParticipant[id]) {
+      delete selFine[id];
+      delete selCredit[id];
+    }
+    renderChips();
+  });
+
+  document.getElementById("fineChips").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-fine-id]");
+    if (!btn) return;
+    var id = btn.dataset.fineId;
+    selFine[id] = !selFine[id];
+    renderChips();
+  });
+
+  document.getElementById("creditChips").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-credit-id]");
+    if (!btn) return;
+    if (btn.classList.contains("disabled")) return;
+    var id = btn.dataset.creditId;
+    selCredit[id] = !selCredit[id];
+    renderChips();
+  });
+
+  document.getElementById("saveTrainingBtn").addEventListener("click", function () {
+    var date = document.getElementById("inputDate").value;
+    if (!date) { showToast("Bitte ein Datum wählen"); return; }
+    var isMega = document.getElementById("inputMega").checked;
+    var participants = Object.keys(selParticipant).filter(function (k) { return selParticipant[k]; });
+    var penalized = Object.keys(selFine).filter(function (k) { return selFine[k]; });
+    var rewarded = Object.keys(selCredit).filter(function (k) { return selCredit[k]; });
+    if (participants.length === 0) {
+      showToast("Bitte mindestens einen Teilnehmer auswählen");
+      return;
+    }
+    state.sessions.push({
+      id: uid(),
+      date: date,
+      isMega: isMega,
+      participants: participants,
+      penalized: penalized,
+      rewarded: rewarded,
+      createdAt: Date.now()
+    });
+    saveState();
+    selParticipant = {};
+    selFine = {};
+    selCredit = {};
+    renderAll();
+    showToast("Training gespeichert");
+  });
+
+  document.getElementById("historyList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-delete-session]");
+    if (!btn) return;
+    var id = btn.dataset.deleteSession;
+    if (!confirm("Diesen Trainingseintrag wirklich löschen?")) return;
+    state.sessions = state.sessions.filter(function (s) { return s.id !== id; });
+    saveState();
+    renderAll();
+    showToast("Eintrag gelöscht");
+  });
+
+  document.getElementById("addPlayerBtn").addEventListener("click", addPlayer);
+  document.getElementById("newPlayerInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") addPlayer();
+  });
+
+  function addPlayer() {
+    var input = document.getElementById("newPlayerInput");
+    var name = input.value.trim();
+    if (!name) return;
+    state.players.push({ id: uid(), name: name });
+    input.value = "";
+    saveState();
+    renderAll();
+    showToast("Spieler hinzugefügt");
+  }
+
+  document.getElementById("kaderList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-remove-player]");
+    if (!btn) return;
+    var id = btn.dataset.removePlayer;
+    var name = playerName(id);
+    if (!confirm(escapeHtml(name) + " wirklich aus dem Kader entfernen? Vergangene Einträge bleiben im Verlauf, zeigen aber \"(gelöscht)\".")) return;
+    state.players = state.players.filter(function (p) { return p.id !== id; });
+    delete selParticipant[id];
+    delete selFine[id];
+    delete selCredit[id];
+    saveState();
+    renderAll();
+    showToast("Spieler entfernt");
+  });
+
+  startSync();
+</script>
