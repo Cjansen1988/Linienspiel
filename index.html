@@ -663,6 +663,12 @@
     return p ? p.name : "(gelöscht)";
   }
 
+  function sortedPlayers() {
+    return state.players.slice().sort(function (a, b) {
+      return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+    });
+  }
+
   function showToast(msg) {
     var t = document.getElementById("toast");
     t.textContent = msg;
@@ -717,6 +723,10 @@
     }
 
     onSnapshot(stateDocRef, function (snap) {
+      // Wichtig: Hier NIE automatisch schreiben/überschreiben — nur lesen.
+      // Existiert das Dokument (noch) nicht, zeigen wir einfach einen leeren
+      // Kader an. Ein echter Schreibvorgang passiert ausschließlich, wenn
+      // eine Person aktiv etwas hinzufügt/ändert (siehe saveState()).
       if (snap.exists()) {
         var data = snap.data() || {};
         state.players = Array.isArray(data.players) ? data.players : [];
@@ -724,7 +734,6 @@
       } else {
         state.players = [];
         state.sessions = [];
-        setDoc(stateDocRef, state).catch(function (e) { console.error(e); });
       }
       setConnStatus("🟢 Live verbunden", "conn-ok");
       hideLoadingOverlay();
@@ -770,7 +779,7 @@
 
     var rows = state.players.map(function (p) {
       return { id: p.id, name: p.name, balance: balances[p.id] || 0 };
-    }).sort(function (a, b) { return a.balance - b.balance; });
+    }).sort(function (a, b) { return (a.balance - b.balance) || a.name.localeCompare(b.name, "de", { sensitivity: "base" }); });
 
     var tbody = document.querySelector("#balanceTable tbody");
     var emptyEl = document.getElementById("balanceEmpty");
@@ -834,12 +843,14 @@
       return;
     }
 
-    participantWrap.innerHTML = state.players.map(function (p) {
+    var playersSorted = sortedPlayers();
+
+    participantWrap.innerHTML = playersSorted.map(function (p) {
       var sel = selParticipant[p.id] ? " sel-credit" : "";
       return '<button type="button" class="chip' + sel + '" data-participant-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
     }).join("");
 
-    var participants = state.players.filter(function (p) { return selParticipant[p.id]; });
+    var participants = playersSorted.filter(function (p) { return selParticipant[p.id]; });
 
     if (participants.length === 0) {
       var hint = '<span class="empty">Bitte zuerst Teilnehmer oben auswählen.</span>';
@@ -860,7 +871,7 @@
       if (shooters.length === 0) return "";
       return '<div class="payer-override-list">' + shooters.map(function (shooter) {
         var currentPayer = finePayerOverride[shooter.id] || shooter.id;
-        var options = state.players.map(function (p) {
+        var options = playersSorted.map(function (p) {
           var label = p.id === shooter.id ? (p.name + " (selbst)") : p.name;
           var selected = p.id === currentPayer ? " selected" : "";
           return '<option value="' + p.id + '"' + selected + '>' + escapeHtml(label) + '</option>';
@@ -872,7 +883,7 @@
       }).join("") + '</div>';
     }
 
-    var fineSelectedPlayers = state.players.filter(function (p) { return selFine[p.id]; });
+    var fineSelectedPlayers = playersSorted.filter(function (p) { return selFine[p.id]; });
     payerWrap.innerHTML = renderPayerOverrideRows(fineSelectedPlayers);
 
     shortWrap.innerHTML = participants.map(function (p) {
@@ -881,7 +892,7 @@
     }).join("");
 
     var shortPayerWrap = document.getElementById("shortPayerOverrides");
-    var shortSelectedPlayers = state.players.filter(function (p) { return selShort[p.id]; });
+    var shortSelectedPlayers = playersSorted.filter(function (p) { return selShort[p.id]; });
     shortPayerWrap.innerHTML = renderPayerOverrideRows(shortSelectedPlayers);
 
     var creditCount = Object.keys(selCredit).filter(function (k) { return selCredit[k]; }).length;
@@ -933,7 +944,7 @@
       list.innerHTML = '<div class="empty">Noch keine Spieler angelegt.</div>';
       return;
     }
-    list.innerHTML = state.players.map(function (p) {
+    list.innerHTML = sortedPlayers().map(function (p) {
       return '<div class="kader-row"><span class="kname">' + escapeHtml(p.name) + '</span>' +
         '<div class="kactions">' +
         '<button class="btn icon" data-edit-player="' + p.id + '" title="Umbenennen">✏️</button>' +
@@ -983,7 +994,7 @@
       var st = stats[p.id] || { played: 0, fine: 0, short: 0, credit: 0 };
       var quote = st.played > 0 ? Math.round((st.credit / st.played) * 100) : 0;
       return { name: p.name, played: st.played, fine: st.fine, short: st.short, credit: st.credit, quote: quote };
-    }).sort(function (a, b) { return b.played - a.played || b.credit - a.credit; });
+    }).sort(function (a, b) { return b.played - a.played || b.credit - a.credit || a.name.localeCompare(b.name, "de", { sensitivity: "base" }); });
 
     tbody.innerHTML = rows.map(function (r) {
       return '<tr><td class="name">' + escapeHtml(r.name) + '</td>' +
