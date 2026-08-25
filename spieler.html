@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#c8102e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Linienspiel – Spieleransicht</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f6f7;
+    --surface-2: #eeeeef;
+    --border: #e2e2e4;
+    --text: #131314;
+    --text-muted: #6b6b6f;
+    --accent: #c8102e;
+    --accent-soft: #fbe6e9;
+    --positive: #1a7a3c;
+    --positive-soft: #e6f5ea;
+    --negative: #c8102e;
+    --negative-soft: #fbe6e9;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.06);
+    --radius: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0d0d0e;
+      --surface: #18181a;
+      --surface-2: #212123;
+      --border: #2c2c2f;
+      --text: #f2f2f3;
+      --text-muted: #9a9a9e;
+      --accent: #ff3b52;
+      --accent-soft: #341318;
+      --positive: #3ecb72;
+      --positive-soft: #123321;
+      --negative: #ff3b52;
+      --negative-soft: #341318;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d0d0e;
+    --surface: #18181a;
+    --surface-2: #212123;
+    --border: #2c2c2f;
+    --text: #f2f2f3;
+    --text-muted: #9a9a9e;
+    --accent: #ff3b52;
+    --accent-soft: #341318;
+    --positive: #3ecb72;
+    --positive-soft: #123321;
+    --negative: #ff3b52;
+    --negative-soft: #341318;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 20px 16px calc(48px + env(safe-area-inset-bottom, 0px));
+    padding-top: max(20px, env(safe-area-inset-top, 0px));
+  }
+
+  .topbar { margin-bottom: 14px; }
+  .brand {
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .brand .sub { color: var(--accent); font-weight: 700; }
+  .sub-line { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+  .conn-status { font-size: 0.76rem; font-weight: 700; margin-top: 4px; display: block; }
+  .conn-status.conn-ok { color: var(--positive); }
+  .conn-status.conn-bad { color: var(--negative); }
+
+  .search-wrap {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    background: var(--bg);
+    padding: 10px 0;
+    margin: 0 0 14px;
+    z-index: 20;
+  }
+  input[type="search"] {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: 16px;
+    font-family: inherit;
+    min-height: 44px;
+  }
+  input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .player-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .player-card summary {
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+  }
+  .player-card summary::-webkit-details-marker { display: none; }
+  .player-card summary::after {
+    content: "▾";
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    transition: transform .15s ease;
+    margin-left: 4px;
+  }
+  .player-card[open] summary::after { transform: rotate(180deg); }
+  .p-name { font-weight: 700; font-size: 0.98rem; }
+  .p-balance { font-weight: 800; font-size: 1rem; margin-left: auto; }
+  .p-balance.pos { color: var(--positive); }
+  .p-balance.neg { color: var(--negative); }
+
+  .player-detail {
+    padding: 0 16px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .detail-stat {
+    background: var(--surface-2);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+  }
+  .detail-stat .dlabel { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
+  .detail-stat .dvalue { font-size: 1.05rem; font-weight: 800; margin-top: 4px; }
+
+  .override-block { margin-top: 14px; }
+  .override-block h4 { margin: 0 0 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  .override-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .override-list li {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .override-list .oamount { font-weight: 700; color: var(--negative); }
+
+  .empty { color: var(--text-muted); font-size: 0.88rem; padding: 20px 0; text-align: center; }
+
+  .loading-overlay {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 200; text-align: center; padding: 24px;
+  }
+  .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loading-box { font-weight: 700; color: var(--text-muted); font-size: 0.95rem; }
+  .loading-box .big { font-size: 2rem; display: block; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box"><span class="big">⚽</span>Lädt…</div>
+</div>
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span>⚽</span><span>TuS Haren</span><span class="sub">Linienspiel</span></div>
+    <div class="sub-line">Spieleransicht – nur zum Anschauen. Änderungen trägt der Trainer in der Haupt-App ein.</div>
+    <span class="conn-status" id="connStatus"></span>
+  </div>
+
+  <div class="search-wrap">
+    <input type="search" id="searchInput" placeholder="Name suchen…">
+  </div>
+
+  <div id="playerList"></div>
+  <div class="empty" id="emptyHint" style="display:none">Noch keine Spieler im Kader.</div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  // Gleiche Firebase-Konfiguration wie in index.html – diese Seite liest
+  // nur, sie schreibt niemals etwas in die Datenbank.
+  var firebaseConfig = {
+    apiKey: "AIzaSyDw_BZ6AB6lw5pqQvVYyeb7xFlkD2tWd7I",
+    authDomain: "linienspiel-tusharen.firebaseapp.com",
+    projectId: "linienspiel-tusharen",
+    storageBucket: "linienspiel-tusharen.firebasestorage.app",
+    messagingSenderId: "485803832044",
+    appId: "1:485803832044:web:66f14ecb55801e4c1eabc9"
+  };
+
+  var FINE_NORMAL = 50, FINE_MEGA = 100;
+  var CREDIT_NORMAL = 100, CREDIT_MEGA = 200;
+
+  var state = { players: [], sessions: [] };
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function formatEuro(cents) {
+    var sign = cents < 0 ? "-" : "";
+    var abs = Math.abs(cents);
+    var str = (abs / 100).toFixed(2).replace(".", ",");
+    return sign + str + " €";
+  }
+
+  function playerName(id) {
+    var p = state.players.filter(function (x) { return x.id === id; })[0];
+    return p ? p.name : "(gelöscht)";
+  }
+
+  function formatDate(dateStr) {
+    var d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  function sortedPlayers() {
+    return state.players.slice().sort(function (a, b) {
+      return a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+    });
+  }
+
+  function computeAll() {
+    var byId = {};
+    function ensure(id) {
+      if (!byId[id]) byId[id] = { played: 0, fineCount: 0, shortCount: 0, creditCount: 0, balance: 0, coveredForOthers: [], coveredByOthers: [] };
+    }
+    state.players.forEach(function (p) { ensure(p.id); });
+
+    state.sessions.forEach(function (s) {
+      var fineAmt = s.isMega ? FINE_MEGA : FINE_NORMAL;
+      var creditAmt = s.isMega ? CREDIT_MEGA : CREDIT_NORMAL;
+      var participants = (s.participants && s.participants.length)
+        ? s.participants
+        : Array.from(new Set((s.penalized || []).concat(s.rewarded || [])));
+
+      participants.forEach(function (id) { ensure(id); byId[id].played++; });
+
+      function applyMiss(id, isShort) {
+        ensure(id);
+        if (isShort) byId[id].shortCount++; else byId[id].fineCount++;
+        var payerId = (s.finePayerOverrides && s.finePayerOverrides[id]) || id;
+        ensure(payerId);
+        byId[payerId].balance -= fineAmt;
+        if (payerId !== id) {
+          byId[payerId].coveredForOthers.push({ date: s.date, forId: id, amount: fineAmt, isMega: s.isMega });
+          byId[id].coveredByOthers.push({ date: s.date, byId_: payerId, amount: fineAmt, isMega: s.isMega });
+        }
+      }
+
+      (s.penalized || []).forEach(function (id) { applyMiss(id, false); });
+      (s.short || []).forEach(function (id) { applyMiss(id, true); });
+      (s.rewarded || []).forEach(function (id) {
+        ensure(id);
+        byId[id].creditCount++;
+        byId[id].balance += creditAmt;
+      });
+    });
+
+    return byId;
+  }
+
+  function renderList() {
+    var all = computeAll();
+    var list = document.getElementById("playerList");
+    var emptyHint = document.getElementById("emptyHint");
+    var players = sortedPlayers();
+
+    if (players.length === 0) {
+      list.innerHTML = "";
+      emptyHint.style.display = "block";
+      return;
+    }
+    emptyHint.style.display = "none";
+
+    list.innerHTML = players.map(function (p) {
+      var st = all[p.id] || { played: 0, fineCount: 0, shortCount: 0, creditCount: 0, balance: 0, coveredForOthers: [], coveredByOthers: [] };
+      var balCls = st.balance > 0 ? "pos" : (st.balance < 0 ? "neg" : "");
+
+      var coveredForHtml = "";
+      if (st.coveredForOthers.length > 0) {
+        coveredForHtml = '<div class="override-block"><h4>Strafen für andere übernommen (' + st.coveredForOthers.length + ')</h4><ul class="override-list">' +
+          st.coveredForOthers.map(function (o) {
+            return '<li><span>' + formatDate(o.date) + ' – für ' + escapeHtml(playerName(o.forId)) + (o.isMega ? ' 🔥' : '') + '</span><span class="oamount">' + formatEuro(-o.amount).replace("-", "") + '</span></li>';
+          }).join("") + '</ul></div>';
+      }
+
+      var coveredByHtml = "";
+      if (st.coveredByOthers.length > 0) {
+        coveredByHtml = '<div class="override-block"><h4>Eigene Strafen, die jemand anders übernommen hat (' + st.coveredByOthers.length + ')</h4><ul class="override-list">' +
+          st.coveredByOthers.map(function (o) {
+            return '<li><span>' + formatDate(o.date) + ' – von ' + escapeHtml(playerName(o.byId_)) + (o.isMega ? ' 🔥' : '') + '</span><span class="oamount">' + formatEuro(-o.amount).replace("-", "") + '</span></li>';
+          }).join("") + '</ul></div>';
+      }
+
+      return '<details class="player-card" data-name="' + escapeHtml(p.name.toLowerCase()) + '">' +
+        '<summary><span class="p-name">' + escapeHtml(p.name) + '</span><span class="p-balance ' + balCls + '">' + formatEuro(st.balance) + '</span></summary>' +
+        '<div class="player-detail">' +
+          '<div class="detail-grid">' +
+            '<div class="detail-stat"><div class="dlabel">Teilgenommen</div><div class="dvalue">' + st.played + '</div></div>' +
+            '<div class="detail-stat"><div class="dlabel">Gewonnen (Top 3)</div><div class="dvalue">' + st.creditCount + '</div></div>' +
+            '<div class="detail-stat"><div class="dlabel">Zu weit</div><div class="dvalue">' + st.fineCount + '</div></div>' +
+            '<div class="detail-stat"><div class="dlabel">Zu kurz</div><div class="dvalue">' + st.shortCount + '</div></div>' +
+          '</div>' +
+          coveredForHtml +
+          coveredByHtml +
+        '</div>' +
+      '</details>';
+    }).join("");
+  }
+
+  document.getElementById("searchInput").addEventListener("input", function () {
+    var q = this.value.trim().toLowerCase();
+    document.querySelectorAll(".player-card").forEach(function (card) {
+      card.style.display = card.dataset.name.indexOf(q) !== -1 ? "" : "none";
+    });
+  });
+
+  function setConnStatus(text, cls) {
+    var el = document.getElementById("connStatus");
+    el.textContent = text;
+    el.className = "conn-status " + (cls || "");
+  }
+  function hideLoadingOverlay() {
+    document.getElementById("loadingOverlay").classList.add("hidden");
+  }
+
+  try {
+    var app = initializeApp(firebaseConfig);
+    var db = getFirestore(app);
+    var stateDocRef = doc(db, "linienspiel", "state");
+
+    onSnapshot(stateDocRef, function (snap) {
+      if (snap.exists()) {
+        var data = snap.data() || {};
+        state.players = Array.isArray(data.players) ? data.players : [];
+        state.sessions = Array.isArray(data.sessions) ? data.sessions : [];
+      } else {
+        state.players = [];
+        state.sessions = [];
+      }
+      setConnStatus("🟢 Live verbunden", "conn-ok");
+      hideLoadingOverlay();
+      renderList();
+    }, function (err) {
+      console.error(err);
+      setConnStatus("🔴 Verbindung fehlgeschlagen", "conn-bad");
+      hideLoadingOverlay();
+    });
+  } catch (e) {
+    console.error(e);
+    setConnStatus("🔴 Firebase-Init fehlgeschlagen", "conn-bad");
+    hideLoadingOverlay();
+  }
+</script>
+</body>
+</html>
