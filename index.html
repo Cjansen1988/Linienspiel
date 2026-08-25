@@ -118,6 +118,7 @@
   }
   .conn-status.conn-ok { color: var(--positive); }
   .conn-status.conn-bad { color: var(--negative); }
+  .conn-status.conn-warn { color: var(--text-muted); }
   .mega-badge {
     display: inline-flex;
     align-items: center;
@@ -583,7 +584,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   // =====================================================================
   // TODO: Hier deine eigene Firebase-Konfiguration einfügen.
@@ -713,12 +714,25 @@
     }
     try {
       var app = initializeApp(firebaseConfig);
-      db = getFirestore(app);
+      // Offline-Cache aktivieren: Daten bleiben im Browser gespeichert (IndexedDB),
+      // damit Kader/Trainings auch ohne Internet angezeigt und NEU EINGETRAGEN
+      // werden können. Änderungen werden automatisch synchronisiert, sobald
+      // wieder eine Verbindung besteht. Funktioniert nur, wenn die Seite
+      // mindestens einmal mit Internet erfolgreich geladen wurde.
+      try {
+        db = initializeFirestore(app, {
+          localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+        });
+      } catch (persistErr) {
+        console.warn("Offline-Speicher nicht verfügbar, nutze Online-Modus.", persistErr);
+        db = getFirestore(app);
+      }
       stateDocRef = doc(db, "linienspiel", "state");
     } catch (e) {
       console.error(e);
       setConnStatus("🔴 Firebase-Init fehlgeschlagen", "conn-bad");
       hideLoadingOverlay();
+      renderAll();
       return;
     }
 
@@ -735,7 +749,11 @@
         state.players = [];
         state.sessions = [];
       }
-      setConnStatus("🟢 Live verbunden", "conn-ok");
+      if (snap.metadata.fromCache) {
+        setConnStatus("🟡 Offline – Änderungen werden gespeichert und später synchronisiert", "conn-warn");
+      } else {
+        setConnStatus("🟢 Live verbunden", "conn-ok");
+      }
       hideLoadingOverlay();
       renderAll();
     }, function (err) {
@@ -743,6 +761,7 @@
       setConnStatus("🔴 Verbindung fehlgeschlagen", "conn-bad");
       hideLoadingOverlay();
       showToast("Verbindung zur Datenbank fehlgeschlagen");
+      renderAll();
     });
   }
 

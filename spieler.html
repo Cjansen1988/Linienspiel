@@ -91,14 +91,81 @@
   .conn-status { font-size: 0.76rem; font-weight: 700; margin-top: 4px; display: block; }
   .conn-status.conn-ok { color: var(--positive); }
   .conn-status.conn-bad { color: var(--negative); }
+  .conn-status.conn-warn { color: var(--text-muted); }
 
-  .search-wrap {
+  .tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 8px 0 10px;
+    margin: 0 0 14px;
+    border-bottom: 1px solid var(--border);
     position: sticky;
     top: env(safe-area-inset-top, 0px);
     background: var(--bg);
+    z-index: 20;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    min-height: 40px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab.active { color: var(--bg); background: var(--accent); }
+
+  .panel { display: none; }
+  .panel.active { display: block; animation: fade .15s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(2px);} to { opacity: 1; transform: translateY(0);} }
+
+  .lb-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+  .lb-tab {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    padding: 9px 14px;
+    min-height: 40px;
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lb-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .lb-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .lb-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: var(--shadow);
+  }
+  .lb-rank { font-weight: 800; color: var(--text-muted); width: 26px; text-align: center; font-size: 0.95rem; }
+  .lb-row.top1 .lb-rank, .lb-row.top2 .lb-rank, .lb-row.top3 .lb-rank { font-size: 1.15rem; }
+  .lb-row.top1 { border-color: var(--accent); background: var(--accent-soft); }
+  .lb-name { flex: 1; font-weight: 700; }
+  .lb-value { font-weight: 800; font-size: 1rem; }
+
+  .search-wrap {
+    position: sticky;
+    top: calc(env(safe-area-inset-top, 0px) + 56px);
+    background: var(--bg);
     padding: 10px 0;
     margin: 0 0 14px;
-    z-index: 20;
+    z-index: 15;
   }
   input[type="search"] {
     width: 100%;
@@ -205,17 +272,34 @@
     <span class="conn-status" id="connStatus"></span>
   </div>
 
-  <div class="search-wrap">
-    <input type="search" id="searchInput" placeholder="Name suchen…">
-  </div>
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="rangliste">🏆 Rangliste</button>
+    <button class="tab" data-tab="alle">👥 Alle Spieler</button>
+  </nav>
 
-  <div id="playerList"></div>
-  <div class="empty" id="emptyHint" style="display:none">Noch keine Spieler im Kader.</div>
+  <section class="panel active" id="tab-rangliste">
+    <div class="lb-tabs" id="lbTabs">
+      <button class="lb-tab active" data-cat="credit">Gewonnen</button>
+      <button class="lb-tab" data-cat="played">Teilnahmen</button>
+      <button class="lb-tab" data-cat="short">Zu kurz</button>
+      <button class="lb-tab" data-cat="fine">Zu weit</button>
+    </div>
+    <ol class="lb-list" id="lbList"></ol>
+    <div class="empty" id="lbEmpty" style="display:none">Noch keine Spieler im Kader.</div>
+  </section>
+
+  <section class="panel" id="tab-alle">
+    <div class="search-wrap">
+      <input type="search" id="searchInput" placeholder="Name suchen…">
+    </div>
+    <div id="playerList"></div>
+    <div class="empty" id="emptyHint" style="display:none">Noch keine Spieler im Kader.</div>
+  </section>
 </div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-  import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   // Gleiche Firebase-Konfiguration wie in index.html – diese Seite liest
   // nur, sie schreibt niemals etwas in die Datenbank.
@@ -351,6 +435,63 @@
     }).join("");
   }
 
+  var lbCategory = "credit";
+  var LB_LABELS = {
+    credit: { title: "Gewonnen (Top 3)", key: "creditCount" },
+    played: { title: "Teilnahmen", key: "played" },
+    short: { title: "Zu kurz geschossen", key: "shortCount" },
+    fine: { title: "Zu weit geschossen", key: "fineCount" }
+  };
+
+  function renderLeaderboard() {
+    var all = computeAll();
+    var listEl = document.getElementById("lbList");
+    var emptyEl = document.getElementById("lbEmpty");
+    var players = sortedPlayers();
+
+    if (players.length === 0) {
+      listEl.innerHTML = "";
+      emptyEl.style.display = "block";
+      return;
+    }
+    emptyEl.style.display = "none";
+
+    var cfg = LB_LABELS[lbCategory];
+    var rows = players.map(function (p) {
+      var st = all[p.id] || { played: 0, fineCount: 0, shortCount: 0, creditCount: 0 };
+      return { name: p.name, value: st[cfg.key] || 0 };
+    }).sort(function (a, b) {
+      return b.value - a.value || a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+    });
+
+    var medals = ["🥇", "🥈", "🥉"];
+    listEl.innerHTML = rows.map(function (r, i) {
+      var cls = i < 3 ? " top" + (i + 1) : "";
+      var rankLabel = i < 3 ? medals[i] : (i + 1);
+      return '<li class="lb-row' + cls + '"><span class="lb-rank">' + rankLabel + '</span>' +
+        '<span class="lb-name">' + escapeHtml(r.name) + '</span>' +
+        '<span class="lb-value">' + r.value + '</span></li>';
+    }).join("");
+  }
+
+  document.getElementById("lbTabs").addEventListener("click", function (e) {
+    var btn = e.target.closest(".lb-tab");
+    if (!btn) return;
+    lbCategory = btn.dataset.cat;
+    document.querySelectorAll(".lb-tab").forEach(function (t) { t.classList.remove("active"); });
+    btn.classList.add("active");
+    renderLeaderboard();
+  });
+
+  document.getElementById("tabs").addEventListener("click", function (e) {
+    var btn = e.target.closest(".tab");
+    if (!btn) return;
+    document.querySelectorAll("#tabs .tab").forEach(function (t) { t.classList.remove("active"); });
+    document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+
   document.getElementById("searchInput").addEventListener("input", function () {
     var q = this.value.trim().toLowerCase();
     document.querySelectorAll(".player-card").forEach(function (card) {
@@ -369,7 +510,15 @@
 
   try {
     var app = initializeApp(firebaseConfig);
-    var db = getFirestore(app);
+    var db;
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    } catch (persistErr) {
+      console.warn("Offline-Speicher nicht verfügbar, nutze Online-Modus.", persistErr);
+      db = getFirestore(app);
+    }
     var stateDocRef = doc(db, "linienspiel", "state");
 
     onSnapshot(stateDocRef, function (snap) {
@@ -381,13 +530,20 @@
         state.players = [];
         state.sessions = [];
       }
-      setConnStatus("🟢 Live verbunden", "conn-ok");
+      if (snap.metadata.fromCache) {
+        setConnStatus("🟡 Offline – letzter bekannter Stand", "conn-warn");
+      } else {
+        setConnStatus("🟢 Live verbunden", "conn-ok");
+      }
       hideLoadingOverlay();
       renderList();
+      renderLeaderboard();
     }, function (err) {
       console.error(err);
       setConnStatus("🔴 Verbindung fehlgeschlagen", "conn-bad");
       hideLoadingOverlay();
+      renderList();
+      renderLeaderboard();
     });
   } catch (e) {
     console.error(e);
