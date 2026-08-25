@@ -180,6 +180,26 @@
   }
   input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+  .history-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .history-date { font-weight: 700; font-size: 0.9rem; }
+  .history-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag {
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+  .tag.fine { background: var(--negative-soft); color: var(--negative); }
+  .tag.short { background: var(--surface-2); color: var(--text-muted); }
+  .tag.credit { background: var(--positive-soft); color: var(--positive); }
+
   .player-card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -275,6 +295,7 @@
   <nav class="tabs" id="tabs">
     <button class="tab active" data-tab="rangliste">🏆 Rangliste</button>
     <button class="tab" data-tab="alle">👥 Alle Spieler</button>
+    <button class="tab" data-tab="verlauf">📅 Verlauf</button>
   </nav>
 
   <section class="panel active" id="tab-rangliste">
@@ -294,6 +315,12 @@
     </div>
     <div id="playerList"></div>
     <div class="empty" id="emptyHint" style="display:none">Noch keine Spieler im Kader.</div>
+  </section>
+
+  <section class="panel" id="tab-verlauf">
+    <p class="sub-line" style="margin-bottom:14px">Alle Trainings, neueste zuerst.</p>
+    <div id="historyList"></div>
+    <div class="empty" id="historyEmpty" style="display:none">Noch keine Trainings eingetragen.</div>
   </section>
 </div>
 
@@ -474,6 +501,42 @@
     }).join("");
   }
 
+  function renderVerlauf() {
+    var list = document.getElementById("historyList");
+    var emptyEl = document.getElementById("historyEmpty");
+    if (state.sessions.length === 0) {
+      list.innerHTML = "";
+      emptyEl.style.display = "block";
+      return;
+    }
+    emptyEl.style.display = "none";
+
+    function withOverride(id, s) {
+      var overridePayer = s.finePayerOverrides && s.finePayerOverrides[id];
+      return overridePayer ? (playerName(id) + " (zahlt: " + playerName(overridePayer) + ")") : playerName(id);
+    }
+
+    var sorted = state.sessions.slice().sort(function (a, b) {
+      return b.date.localeCompare(a.date) || (b.createdAt || 0) - (a.createdAt || 0);
+    });
+
+    list.innerHTML = sorted.map(function (s) {
+      var d = new Date(s.date + "T00:00:00");
+      var dateLabel = d.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+      var fineNames = (s.penalized || []).map(function (id) { return withOverride(id, s); });
+      var shortNames = (s.short || []).map(function (id) { return withOverride(id, s); });
+      var creditNames = (s.rewarded || []).map(playerName);
+      var tags = "";
+      if (fineNames.length) tags += '<span class="tag fine">💸 Zu weit: ' + fineNames.map(escapeHtml).join(", ") + '</span>';
+      if (shortNames.length) tags += '<span class="tag short">📉 Zu kurz: ' + shortNames.map(escapeHtml).join(", ") + '</span>';
+      if (creditNames.length) tags += '<span class="tag credit">🎯 Am nächsten: ' + creditNames.map(escapeHtml).join(", ") + '</span>';
+      return '<div class="history-item">' +
+        '<div class="history-date">' + dateLabel + (s.isMega ? " · 🔥 Mega Mittwoch" : "") + '</div>' +
+        '<div class="history-tags">' + (tags || '<span class="empty" style="padding:0">Keine Einträge</span>') + '</div>' +
+      '</div>';
+    }).join("");
+  }
+
   document.getElementById("lbTabs").addEventListener("click", function (e) {
     var btn = e.target.closest(".lb-tab");
     if (!btn) return;
@@ -538,12 +601,14 @@
       hideLoadingOverlay();
       renderList();
       renderLeaderboard();
+      renderVerlauf();
     }, function (err) {
       console.error(err);
       setConnStatus("🔴 Verbindung fehlgeschlagen", "conn-bad");
       hideLoadingOverlay();
       renderList();
       renderLeaderboard();
+      renderVerlauf();
     });
   } catch (e) {
     console.error(e);
