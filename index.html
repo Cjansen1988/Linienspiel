@@ -501,7 +501,7 @@
         </div>
 
         <div class="field">
-          <label>Teilnehmer (wer war beim Linienspiel dabei)</label>
+          <label id="participantLabel">Teilnehmer (wer war beim Linienspiel dabei)</label>
           <div class="chip-wrap" id="participantChips"></div>
         </div>
 
@@ -521,6 +521,8 @@
           <label id="creditLabel">Top 3 am nächsten (Gutschrift, max. 3)</label>
           <div class="chip-wrap" id="creditChips"></div>
         </div>
+
+        <p class="hint" id="exclusivityHint">Ein Spieler kann pro Training nur in einer Kategorie stehen (Zu weit / Zu kurz / Top 3). Bereits zugeordnete Spieler sind in den anderen Kategorien ausgegraut – erst dort abwählen, um sie zu wechseln.</p>
 
         <button class="btn" id="saveTrainingBtn">Training speichern</button>
       </div>
@@ -838,12 +840,26 @@
     var fine = mega ? FINE_MEGA : FINE_NORMAL;
     var credit = mega ? CREDIT_MEGA : CREDIT_NORMAL;
     document.getElementById("megaAmountsHint").textContent = "Strafe " + formatEuro(-fine).replace("-", "") + " / Gutschrift " + formatEuro(credit);
-    document.getElementById("fineLabel").textContent = "Zu weit geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ")";
-    document.getElementById("shortLabel").textContent = "Zu kurz geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ")";
-    document.getElementById("creditLabel").textContent = "Top 3 am nächsten (Gutschrift " + formatEuro(credit) + ", max. 3)";
+    renderChips();
+  }
+
+  function updateCategoryLabels() {
+    var mega = document.getElementById("inputMega").checked;
+    var fine = mega ? FINE_MEGA : FINE_NORMAL;
+    var credit = mega ? CREDIT_MEGA : CREDIT_NORMAL;
+    var countParticipant = Object.keys(selParticipant).filter(function (k) { return selParticipant[k]; }).length;
+    var countFine = Object.keys(selFine).filter(function (k) { return selFine[k]; }).length;
+    var countShort = Object.keys(selShort).filter(function (k) { return selShort[k]; }).length;
+    var countCredit = Object.keys(selCredit).filter(function (k) { return selCredit[k]; }).length;
+    document.getElementById("participantLabel").textContent = "Teilnehmer (wer war beim Linienspiel dabei) — " + countParticipant + " ausgewählt";
+    document.getElementById("fineLabel").textContent = "Zu weit geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ") — " + countFine + " ausgewählt";
+    document.getElementById("shortLabel").textContent = "Zu kurz geschossen (zahlt " + formatEuro(-fine).replace("-", "") + ") — " + countShort + " ausgewählt";
+    document.getElementById("creditLabel").textContent = "Top 3 am nächsten (Gutschrift " + formatEuro(credit) + ") — " + countCredit + "/3 ausgewählt";
   }
 
   function renderChips() {
+    updateCategoryLabels();
+
     var participantWrap = document.getElementById("participantChips");
     var fineWrap = document.getElementById("fineChips");
     var shortWrap = document.getElementById("shortChips");
@@ -883,7 +899,10 @@
 
     fineWrap.innerHTML = participants.map(function (p) {
       var sel = selFine[p.id] ? " sel-fine" : "";
-      return '<button type="button" class="chip' + sel + '" data-fine-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
+      var lockedElsewhere = !selFine[p.id] && (selShort[p.id] || selCredit[p.id]);
+      var disabledAttr = lockedElsewhere ? " disabled" : "";
+      var title = lockedElsewhere ? ' title="Bereits in einer anderen Kategorie erfasst – dort erst abwählen"' : "";
+      return '<button type="button" class="chip' + sel + disabledAttr + '"' + title + ' data-fine-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
     }).join("");
 
     function renderPayerOverrideRows(shooters) {
@@ -907,7 +926,10 @@
 
     shortWrap.innerHTML = participants.map(function (p) {
       var sel = selShort[p.id] ? " sel-short" : "";
-      return '<button type="button" class="chip' + sel + '" data-short-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
+      var lockedElsewhere = !selShort[p.id] && (selFine[p.id] || selCredit[p.id]);
+      var disabledAttr = lockedElsewhere ? " disabled" : "";
+      var title = lockedElsewhere ? ' title="Bereits in einer anderen Kategorie erfasst – dort erst abwählen"' : "";
+      return '<button type="button" class="chip' + sel + disabledAttr + '"' + title + ' data-short-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
     }).join("");
 
     var shortPayerWrap = document.getElementById("shortPayerOverrides");
@@ -917,8 +939,11 @@
     var creditCount = Object.keys(selCredit).filter(function (k) { return selCredit[k]; }).length;
     creditWrap.innerHTML = participants.map(function (p) {
       var sel = selCredit[p.id] ? " sel-credit" : "";
-      var disabled = (!selCredit[p.id] && creditCount >= 3) ? " disabled" : "";
-      return '<button type="button" class="chip' + sel + disabled + '" data-credit-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
+      var lockedElsewhere = !selCredit[p.id] && (selFine[p.id] || selShort[p.id]);
+      var atCap = !selCredit[p.id] && creditCount >= 3;
+      var disabled = (lockedElsewhere || atCap) ? " disabled" : "";
+      var title = lockedElsewhere ? ' title="Bereits in einer anderen Kategorie erfasst – dort erst abwählen"' : (atCap ? ' title="Schon 3 Spieler ausgewählt"' : "");
+      return '<button type="button" class="chip' + sel + disabled + '"' + title + ' data-credit-id="' + p.id + '">' + escapeHtml(p.name) + '</button>';
     }).join("");
   }
 
@@ -1065,16 +1090,16 @@
   });
 
   // Ein Schuss hat genau ein Ergebnis: zu weit ODER zu kurz ODER am nächsten dran.
-  // Auswahl in einer Kategorie entfernt den Spieler automatisch aus den anderen beiden.
-  // "Zu weit" und "zu kurz" kosten beide eine Strafe, daher bleibt eine bereits
-  // gewählte Übernahme (wer zahlt) beim Wechsel zwischen diesen beiden erhalten.
+  // Ein Spieler, der schon in einer anderen Kategorie steht, ist dort ausgegraut
+  // (siehe renderChips) und muss zuerst dort abgewählt werden, bevor er in einer
+  // anderen Kategorie ausgewählt werden kann – so kann niemand doppelt erfasst werden.
   document.getElementById("fineChips").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-fine-id]");
     if (!btn) return;
+    if (btn.classList.contains("disabled")) return;
     var id = btn.dataset.fineId;
     selFine[id] = !selFine[id];
-    if (selFine[id]) { delete selShort[id]; delete selCredit[id]; }
-    else { delete finePayerOverride[id]; }
+    if (!selFine[id]) { delete finePayerOverride[id]; }
     renderChips();
   });
 
@@ -1094,10 +1119,10 @@
   document.getElementById("shortChips").addEventListener("click", function (e) {
     var btn = e.target.closest("[data-short-id]");
     if (!btn) return;
+    if (btn.classList.contains("disabled")) return;
     var id = btn.dataset.shortId;
     selShort[id] = !selShort[id];
-    if (selShort[id]) { delete selFine[id]; delete selCredit[id]; }
-    else { delete finePayerOverride[id]; }
+    if (!selShort[id]) { delete finePayerOverride[id]; }
     renderChips();
   });
 
