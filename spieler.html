@@ -252,6 +252,48 @@
   .detail-stat .dlabel { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700; }
   .detail-stat .dvalue { font-size: 1.05rem; font-weight: 800; margin-top: 4px; }
 
+  .rank-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .rank-chip {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-muted);
+  }
+  .rank-chip .rank-num { color: var(--accent); }
+
+  .mega-banner {
+    margin-top: 12px;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .timeline-block { margin-top: 14px; }
+  .timeline-block h4 { margin: 0 0 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
+  .timeline-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .timeline-list li {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .timeline-list .tl-date { color: var(--text-muted); font-size: 0.8rem; min-width: 78px; }
+  .timeline-list .tl-label { flex: 1; font-weight: 600; }
+  .timeline-list .tl-amount { font-weight: 700; }
+  .timeline-list .tl-amount.neg { color: var(--negative); }
+  .timeline-list .tl-amount.pos { color: var(--positive); }
+
   .override-block { margin-top: 14px; }
   .override-block h4 { margin: 0 0 6px; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.02em; }
   .override-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -376,7 +418,11 @@
   function computeAll() {
     var byId = {};
     function ensure(id) {
-      if (!byId[id]) byId[id] = { played: 0, fineCount: 0, shortCount: 0, creditCount: 0, balance: 0, coveredForOthers: [], coveredByOthers: [] };
+      if (!byId[id]) byId[id] = {
+        played: 0, fineCount: 0, shortCount: 0, creditCount: 0, balance: 0,
+        megaLossCount: 0, megaWinCount: 0,
+        coveredForOthers: [], coveredByOthers: [], events: []
+      };
     }
     state.players.forEach(function (p) { ensure(p.id); });
 
@@ -392,6 +438,8 @@
       function applyMiss(id, isShort) {
         ensure(id);
         if (isShort) byId[id].shortCount++; else byId[id].fineCount++;
+        if (s.isMega) byId[id].megaLossCount++;
+        byId[id].events.push({ date: s.date, type: isShort ? "short" : "fine", isMega: s.isMega, amount: fineAmt });
         var payerId = (s.finePayerOverrides && s.finePayerOverrides[id]) || id;
         ensure(payerId);
         byId[payerId].balance -= fineAmt;
@@ -407,11 +455,31 @@
         ensure(id);
         byId[id].creditCount++;
         byId[id].balance += creditAmt;
+        if (s.isMega) byId[id].megaWinCount++;
+        byId[id].events.push({ date: s.date, type: "credit", isMega: s.isMega, amount: creditAmt });
       });
     });
 
     return byId;
   }
+
+  function rankOf(all, players, key, id) {
+    var rows = players.map(function (p) {
+      return { id: p.id, value: (all[p.id] && all[p.id][key]) || 0, name: p.name };
+    }).sort(function (a, b) {
+      return b.value - a.value || a.name.localeCompare(b.name, "de", { sensitivity: "base" });
+    });
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].id === id) return i + 1;
+    }
+    return rows.length;
+  }
+
+  var EVENT_META = {
+    fine: { icon: "💸", label: "Zu weit" },
+    short: { icon: "📉", label: "Zu kurz" },
+    credit: { icon: "🎯", label: "Gewonnen" }
+  };
 
   function renderList() {
     var all = computeAll();
@@ -426,9 +494,37 @@
     }
     emptyHint.style.display = "none";
 
+    var emptyStats = { played: 0, fineCount: 0, shortCount: 0, creditCount: 0, balance: 0, megaLossCount: 0, megaWinCount: 0, coveredForOthers: [], coveredByOthers: [], events: [] };
+
     list.innerHTML = players.map(function (p) {
-      var st = all[p.id] || { played: 0, fineCount: 0, shortCount: 0, creditCount: 0, balance: 0, coveredForOthers: [], coveredByOthers: [] };
+      var st = all[p.id] || emptyStats;
       var balCls = st.balance > 0 ? "pos" : (st.balance < 0 ? "neg" : "");
+
+      var ranks = ["credit", "played", "short", "fine"].map(function (cat) {
+        var keyMap = { credit: "creditCount", played: "played", short: "shortCount", fine: "fineCount" };
+        var labelMap = { credit: "Gewonnen", played: "Teilnahmen", short: "Zu kurz", fine: "Zu weit" };
+        var rank = rankOf(all, players, keyMap[cat], p.id);
+        return '<span class="rank-chip">' + labelMap[cat] + ' <span class="rank-num">#' + rank + '</span></span>';
+      }).join("");
+
+      var megaHtml = "";
+      if (st.megaLossCount > 0 || st.megaWinCount > 0) {
+        megaHtml = '<div class="mega-banner">🔥 Mega Mittwoch: ' + st.megaLossCount + 'x verloren (zu weit/zu kurz), ' + st.megaWinCount + 'x gewonnen</div>';
+      }
+
+      var timelineHtml = "";
+      if (st.events.length > 0) {
+        var sortedEvents = st.events.slice().sort(function (a, b) { return b.date.localeCompare(a.date); });
+        timelineHtml = '<div class="timeline-block"><h4>Verlauf (' + sortedEvents.length + ')</h4><ul class="timeline-list">' +
+          sortedEvents.map(function (ev) {
+            var meta = EVENT_META[ev.type];
+            var isCredit = ev.type === "credit";
+            var amountText = (isCredit ? "+" : "-") + formatEuro(ev.amount).replace("-", "");
+            return '<li><span class="tl-date">' + formatDate(ev.date) + '</span>' +
+              '<span class="tl-label">' + meta.icon + ' ' + meta.label + (ev.isMega ? ' 🔥' : '') + '</span>' +
+              '<span class="tl-amount ' + (isCredit ? "pos" : "neg") + '">' + amountText + '</span></li>';
+          }).join("") + '</ul></div>';
+      }
 
       var coveredForHtml = "";
       if (st.coveredForOthers.length > 0) {
@@ -455,6 +551,9 @@
             '<div class="detail-stat"><div class="dlabel">Zu weit</div><div class="dvalue">' + st.fineCount + '</div></div>' +
             '<div class="detail-stat"><div class="dlabel">Zu kurz</div><div class="dvalue">' + st.shortCount + '</div></div>' +
           '</div>' +
+          '<div class="rank-row">' + ranks + '</div>' +
+          megaHtml +
+          timelineHtml +
           coveredForHtml +
           coveredByHtml +
         '</div>' +
@@ -593,7 +692,9 @@
         state.players = [];
         state.sessions = [];
       }
-      if (snap.metadata.fromCache) {
+      if (snap.metadata.hasPendingWrites) {
+        setConnStatus("🟡 Es gibt noch nicht gespeicherte Änderungen …", "conn-warn");
+      } else if (snap.metadata.fromCache) {
         setConnStatus("🟡 Offline – letzter bekannter Stand", "conn-warn");
       } else {
         setConnStatus("🟢 Live verbunden", "conn-ok");
